@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -12,6 +12,7 @@ import { iamApi } from "@/lib/api";
 import { useAuthStore } from "@/store/auth.store";
 import { AuthResponse } from "@/types";
 import { cn } from "@/lib/utils";
+import { resolveHostContext, HostContext } from "@/lib/tenant";
 
 // ─── Schema ───────────────────────────────────────────────────────────────────
 
@@ -56,6 +57,27 @@ export default function LoginPage() {
 
   const slugValue = watch("slug") ?? "";
 
+  // The tenant slug is read from the subdomain (hansvl.megnim.com → "hansvl"),
+  // not typed in. The manual field below only appears as a dev/QA fallback on
+  // hosts with no real subdomain to read (localhost, Vercel/Render previews).
+  const [hostContext, setHostContext] = useState<HostContext>({ kind: "unknown" });
+  useEffect(() => {
+    setHostContext(resolveHostContext());
+  }, []);
+
+  const isUnknownHost = hostContext.kind === "unknown";
+  const isHospitalLogin =
+    hostContext.kind === "tenant" || (isUnknownHost && slugValue.trim().length > 0);
+  const effectiveSlug =
+    hostContext.kind === "tenant"
+      ? hostContext.slug
+      : isUnknownHost
+        ? slugValue.trim() || undefined
+        : undefined;
+  // What the header badge shows — the detected slug on a real tenant host,
+  // otherwise whatever's been typed into the dev-fallback field.
+  const displaySlug = hostContext.kind === "tenant" ? hostContext.slug : slugValue;
+
   async function onSubmit(values: LoginFormValues) {
     setServerError(null);
     try {
@@ -63,13 +85,12 @@ export default function LoginPage() {
         identifier: values.identifier,
         password:   values.password,
       };
-      // Only send slug if the user filled it in (blank = Platform Admin)
-      if (values.slug?.trim()) payload.slug = values.slug.trim();
+      if (effectiveSlug) payload.slug = effectiveSlug;
 
       const { data } = await iamApi.post<AuthResponse>("/auth/login", payload);
       // Store the slug so the API client can send X-Tenant-Slug on every
       // subsequent request (tenant context for the middleware).
-      setAuth(data.user, data.accessToken, data.refreshToken, values.slug?.trim() || undefined);
+      setAuth(data.user, data.accessToken, data.refreshToken, effectiveSlug);
       router.replace(ROLE_DEST[data.user.role] ?? "/dashboard");
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } };
@@ -78,8 +99,6 @@ export default function LoginPage() {
       );
     }
   }
-
-  const isHospitalLogin = slugValue.trim().length > 0;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-blue-900 to-blue-800 flex items-center justify-center p-6">
@@ -132,16 +151,34 @@ export default function LoginPage() {
             ))}
           </div>
 
-          {/* Login guidance */}
+          {/* Login guidance — adapts to what this hostname resolved to */}
           <div className="mt-8 space-y-2">
-            <div className="px-4 py-3 bg-white/5 rounded-xl border border-white/10">
-              <p className="text-blue-200 text-xs font-semibold mb-1">Platform Admin</p>
-              <p className="text-blue-300/70 text-xs">Leave Hospital ID blank and sign in with your platform credentials.</p>
-            </div>
-            <div className="px-4 py-3 bg-white/5 rounded-xl border border-white/10">
-              <p className="text-blue-200 text-xs font-semibold mb-1">Hospital Staff (Admin / Doctor / Nurse…)</p>
-              <p className="text-blue-300/70 text-xs">Enter your Hospital ID (e.g. <span className="font-mono">citihospital</span>) then sign in with your Staff ID (e.g. <span className="font-mono">DOC0001</span>) or email.</p>
-            </div>
+            {hostContext.kind === "tenant" && (
+              <div className="px-4 py-3 bg-white/5 rounded-xl border border-white/10">
+                <p className="text-blue-200 text-xs font-semibold mb-1">
+                  Signing in to <span className="font-mono">{hostContext.slug}</span>
+                </p>
+                <p className="text-blue-300/70 text-xs">Sign in with your Staff ID (e.g. <span className="font-mono">DOC0001</span>) or email. Wrong hospital? Ask your administrator for the correct sign-in link.</p>
+              </div>
+            )}
+            {hostContext.kind === "platform" && (
+              <div className="px-4 py-3 bg-white/5 rounded-xl border border-white/10">
+                <p className="text-blue-200 text-xs font-semibold mb-1">Platform Admin</p>
+                <p className="text-blue-300/70 text-xs">Sign in with your platform credentials.</p>
+              </div>
+            )}
+            {isUnknownHost && (
+              <>
+                <div className="px-4 py-3 bg-white/5 rounded-xl border border-white/10">
+                  <p className="text-blue-200 text-xs font-semibold mb-1">Platform Admin</p>
+                  <p className="text-blue-300/70 text-xs">Leave Hospital ID blank and sign in with your platform credentials.</p>
+                </div>
+                <div className="px-4 py-3 bg-white/5 rounded-xl border border-white/10">
+                  <p className="text-blue-200 text-xs font-semibold mb-1">Hospital Staff (Admin / Doctor / Nurse…)</p>
+                  <p className="text-blue-300/70 text-xs">Enter your Hospital ID (e.g. <span className="font-mono">citihospital</span>) then sign in with your Staff ID (e.g. <span className="font-mono">DOC0001</span>) or email.</p>
+                </div>
+              </>
+            )}
           </div>
         </div>
 
@@ -164,7 +201,7 @@ export default function LoginPage() {
                 <>
                   <div className="flex items-center gap-1.5 mb-0.5">
                     <Building2 className="w-3.5 h-3.5 opacity-70" />
-                    <p className="text-violet-100 text-xs font-mono font-medium">{slugValue}</p>
+                    <p className="text-violet-100 text-xs font-mono font-medium">{displaySlug}</p>
                   </div>
                   <p className="text-white font-semibold text-base">Hospital Sign In</p>
                   <p className="text-violet-200 text-xs mt-0.5">Sign in with your staff credentials</p>
@@ -188,32 +225,35 @@ export default function LoginPage() {
 
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
 
-                {/* Hospital ID (slug) — always visible */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Hospital ID
-                    <span className="ml-1.5 text-xs font-normal text-gray-400">(leave blank for Platform Admin)</span>
-                  </label>
-                  <div className="relative">
-                    <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300" />
-                    <input
-                      {...register("slug")}
-                      type="text"
-                      autoComplete="organization"
-                      placeholder="e.g. citihospital"
-                      className={cn(
-                        "w-full pl-9 pr-3 py-2.5 rounded-lg border text-sm bg-white transition-colors font-mono",
-                        "placeholder:text-gray-300 placeholder:font-sans focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent",
-                        errors.slug
-                          ? "border-red-400 bg-red-50"
-                          : "border-gray-300 hover:border-gray-400"
-                      )}
-                    />
+                {/* Hospital ID (slug) — dev/QA fallback only. On a real tenant
+                    or platform host the slug comes from the subdomain instead. */}
+                {isUnknownHost && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Hospital ID
+                      <span className="ml-1.5 text-xs font-normal text-gray-400">(leave blank for Platform Admin)</span>
+                    </label>
+                    <div className="relative">
+                      <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300" />
+                      <input
+                        {...register("slug")}
+                        type="text"
+                        autoComplete="organization"
+                        placeholder="e.g. citihospital"
+                        className={cn(
+                          "w-full pl-9 pr-3 py-2.5 rounded-lg border text-sm bg-white transition-colors font-mono",
+                          "placeholder:text-gray-300 placeholder:font-sans focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent",
+                          errors.slug
+                            ? "border-red-400 bg-red-50"
+                            : "border-gray-300 hover:border-gray-400"
+                        )}
+                      />
+                    </div>
+                    {errors.slug && (
+                      <p className="text-xs text-red-600 mt-1">{errors.slug.message}</p>
+                    )}
                   </div>
-                  {errors.slug && (
-                    <p className="text-xs text-red-600 mt-1">{errors.slug.message}</p>
-                  )}
-                </div>
+                )}
 
                 {/* Staff ID or Email */}
                 <div>
@@ -297,7 +337,7 @@ export default function LoginPage() {
                 {isHospitalLogin && (
                   <p className="text-center">
                     <a
-                      href={`/forgot-password${slugValue ? `?slug=${encodeURIComponent(slugValue)}` : ''}`}
+                      href={`/forgot-password${effectiveSlug ? `?slug=${encodeURIComponent(effectiveSlug)}` : ''}`}
                       className="text-xs text-gray-500 hover:text-violet-600 transition-colors"
                     >
                       Forgot your password?
