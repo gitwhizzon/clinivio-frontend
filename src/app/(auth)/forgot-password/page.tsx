@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
@@ -9,6 +9,7 @@ import { z } from "zod";
 import { Activity, AlertCircle, CheckCircle2, Building2, Mail } from "lucide-react";
 import { iamApi } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { resolveHostContext, HostContext } from "@/lib/tenant";
 
 const schema = z.object({
   email: z.string().email("Enter a valid email address"),
@@ -36,6 +37,7 @@ function ForgotPasswordForm() {
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -44,6 +46,19 @@ function ForgotPasswordForm() {
       slug: searchParams.get("slug") ?? "",
     },
   });
+
+  // Tenant slug comes from the subdomain when there is one (hansvl.megnim.com
+  // → "hansvl"); the manual field below only shows up when there's no real
+  // subdomain to read (localhost, a Vercel/Render preview URL, or the
+  // platform host itself, which has no forgot-password flow of its own).
+  const [hostContext, setHostContext] = useState<HostContext>({ kind: "unknown" });
+  useEffect(() => {
+    const ctx = resolveHostContext();
+    setHostContext(ctx);
+    if (ctx.kind === "tenant") setValue("slug", ctx.slug, { shouldValidate: true });
+  }, [setValue]);
+
+  const isTenantHost = hostContext.kind === "tenant";
 
   async function onSubmit(values: FormValues) {
     setServerError(null);
@@ -106,29 +121,37 @@ function ForgotPasswordForm() {
                   </div>
                 )}
 
-                {/* Hospital ID */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Hospital ID
-                  </label>
-                  <div className="relative">
-                    <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300" />
-                    <input
-                      {...register("slug")}
-                      type="text"
-                      placeholder="e.g. citihospital"
-                      autoComplete="organization"
-                      className={cn(
-                        "w-full pl-9 pr-3 py-2.5 rounded-lg border text-sm bg-white transition-colors font-mono",
-                        "placeholder:text-gray-300 placeholder:font-sans focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent",
-                        errors.slug ? "border-red-400 bg-red-50" : "border-gray-300 hover:border-gray-400"
-                      )}
-                    />
+                {/* Hospital ID — auto-detected from the subdomain on a real
+                    tenant host; manual entry is a dev/QA fallback only. */}
+                {isTenantHost ? (
+                  <div className="flex items-center gap-1.5 text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5">
+                    <Building2 className="w-3.5 h-3.5 text-gray-400" />
+                    Resetting password for <span className="font-mono font-medium text-gray-700">{hostContext.kind === "tenant" ? hostContext.slug : ""}</span>
                   </div>
-                  {errors.slug && (
-                    <p className="text-xs text-red-600 mt-1">{errors.slug.message}</p>
-                  )}
-                </div>
+                ) : (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Hospital ID
+                    </label>
+                    <div className="relative">
+                      <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300" />
+                      <input
+                        {...register("slug")}
+                        type="text"
+                        placeholder="e.g. citihospital"
+                        autoComplete="organization"
+                        className={cn(
+                          "w-full pl-9 pr-3 py-2.5 rounded-lg border text-sm bg-white transition-colors font-mono",
+                          "placeholder:text-gray-300 placeholder:font-sans focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent",
+                          errors.slug ? "border-red-400 bg-red-50" : "border-gray-300 hover:border-gray-400"
+                        )}
+                      />
+                    </div>
+                    {errors.slug && (
+                      <p className="text-xs text-red-600 mt-1">{errors.slug.message}</p>
+                    )}
+                  </div>
+                )}
 
                 {/* Email */}
                 <div>
