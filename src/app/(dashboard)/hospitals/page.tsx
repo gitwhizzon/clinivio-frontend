@@ -18,6 +18,7 @@ interface Tenant {
   portalUrl?: string;
   whatsappPhoneNumberId?: string;
   wabaId?: string;
+  hasWhatsappAccessToken?: boolean;
   subscriptionTier: string;
   isActive: boolean;
   allowConsultationBeforePayment?: boolean;
@@ -280,7 +281,7 @@ function OnboardModal({ onClose, onSuccess }: {
     name: '', slug: '', city: '', state: '', address: '', pincode: '',
     phone: '', email: '', website: '',
     gstin: '', drugLicenseNo: '',
-    portalUrl: '', whatsappPhoneNumberId: '', wabaId: '',
+    portalUrl: '', whatsappPhoneNumberId: '', wabaId: '', whatsappAccessToken: '',
     subscriptionTier: 'BASIC',
     adminFirstName: '', adminLastName: '', adminEmail: '', adminPassword: '', adminPhone: '',
   });
@@ -436,6 +437,9 @@ function OnboardModal({ onClose, onSuccess }: {
               <div><label className="block text-xs font-medium text-gray-600 mb-1">WABA ID</label>
                 <input value={form.wabaId} onChange={e => setForm({ ...form, wabaId: e.target.value })}
                   placeholder="WhatsApp Business Account ID" className={inp} /></div>
+              <div><label className="block text-xs font-medium text-gray-600 mb-1">WhatsApp Access Token</label>
+                <input type="password" value={form.whatsappAccessToken} onChange={e => setForm({ ...form, whatsappAccessToken: e.target.value })}
+                  placeholder="Leave blank to use the shared platform WhatsApp number" className={inp} /></div>
             </div>
           </div>
 
@@ -516,6 +520,8 @@ function EditTenantModal({ tenant, onClose, onSuccess }: {
     portalUrl:              tenant.portalUrl ?? '',
     whatsappPhoneNumberId:  tenant.whatsappPhoneNumberId ?? '',
     wabaId:                 tenant.wabaId ?? '',
+    whatsappAccessToken:    '',
+    clearWhatsappConfig:    false,
     subscriptionTier:       tenant.subscriptionTier,
     isActive:               tenant.isActive,
     allowConsultationBeforePayment: tenant.allowConsultationBeforePayment ?? false,
@@ -564,6 +570,8 @@ function EditTenantModal({ tenant, onClose, onSuccess }: {
       portalUrl: form.portalUrl || undefined,
       whatsappPhoneNumberId: form.whatsappPhoneNumberId || undefined,
       wabaId: form.wabaId || undefined,
+      whatsappAccessToken: form.whatsappAccessToken || undefined,
+      clearWhatsappConfig: form.clearWhatsappConfig || undefined,
       subscriptionTier: form.subscriptionTier,
       isActive: form.isActive,
       allowConsultationBeforePayment: form.allowConsultationBeforePayment,
@@ -683,14 +691,31 @@ function EditTenantModal({ tenant, onClose, onSuccess }: {
           {/* WhatsApp Integration */}
           <div>
             <SectionLabel>WhatsApp Integration</SectionLabel>
-            <div className="space-y-3">
+            <p className="text-xs text-gray-400 -mt-2 mb-3">
+              {tenant.hasWhatsappAccessToken
+                ? <span className="text-green-600 font-medium">🔒 This hospital has its own WhatsApp access token configured.</span>
+                : 'Not configured — this hospital uses the shared platform WhatsApp number.'}
+            </p>
+            <fieldset disabled={form.clearWhatsappConfig} className="space-y-3 disabled:opacity-40">
               <div><label className="block text-xs font-medium text-gray-600 mb-1">WhatsApp Phone Number ID</label>
                 <input value={form.whatsappPhoneNumberId} onChange={e => setForm({ ...form, whatsappPhoneNumberId: e.target.value })}
                   placeholder="Meta Business Phone Number ID" className={inp} /></div>
               <div><label className="block text-xs font-medium text-gray-600 mb-1">WABA ID</label>
                 <input value={form.wabaId} onChange={e => setForm({ ...form, wabaId: e.target.value })}
                   placeholder="WhatsApp Business Account ID" className={inp} /></div>
-            </div>
+              <div><label className="block text-xs font-medium text-gray-600 mb-1">WhatsApp Access Token</label>
+                <input type="password" value={form.whatsappAccessToken} onChange={e => setForm({ ...form, whatsappAccessToken: e.target.value })}
+                  placeholder={tenant.hasWhatsappAccessToken ? 'Leave blank to keep existing token' : 'Leave blank to use the shared platform token'} className={inp} /></div>
+            </fieldset>
+            <label className="flex items-center gap-3 cursor-pointer mt-3">
+              <input type="checkbox" checked={form.clearWhatsappConfig}
+                onChange={e => setForm({ ...form, clearWhatsappConfig: e.target.checked })}
+                className="w-4 h-4 text-red-600 rounded" />
+              <span className="text-sm font-medium text-gray-700">Remove WhatsApp configuration</span>
+            </label>
+            <p className="text-xs text-gray-400 pl-7 -mt-1">
+              Clears the phone number ID, WABA ID and access token above, reverting this hospital to the shared platform WhatsApp number.
+            </p>
           </div>
 
           {/* Admin Account */}
