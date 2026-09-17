@@ -178,7 +178,7 @@ export default function LoginPage() {
             {hostContext.kind === "platform" && (
               <div className="px-4 py-3 bg-white/5 rounded-xl border border-white/10">
                 <p className="text-blue-200 text-xs font-semibold mb-1">Platform Admin</p>
-                <p className="text-blue-300/70 text-xs">Sign in with your platform credentials.</p>
+                <p className="text-blue-300/70 text-xs">Sign in with your Microsoft work account.</p>
               </div>
             )}
             {isUnknownHost && (
@@ -237,6 +237,12 @@ export default function LoginPage() {
                 </div>
               )}
 
+              {/* Platform admin accounts that have linked Microsoft SSO can no
+                  longer use password login at all (enforced server-side too,
+                  in AuthService.validateUser — this isn't just a UI hide).
+                  The password form only makes sense for hospital staff and
+                  the unknown-host dev/QA fallback. */}
+              {hostContext.kind !== "platform" && (
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
 
                 {/* Hospital ID (slug) — dev/QA fallback only. On a real tenant
@@ -359,14 +365,10 @@ export default function LoginPage() {
                   </p>
                 )}
               </form>
+              )}
 
               {hostContext.kind === "platform" && (
                 <>
-                  <div className="flex items-center gap-3 pt-1">
-                    <div className="h-px flex-1 bg-gray-200" />
-                    <span className="text-xs text-gray-400">or</span>
-                    <div className="h-px flex-1 bg-gray-200" />
-                  </div>
                   {/* Plain navigation, not a fetch — the whole SSO flow is
                       server-driven redirects (see auth.controller.ts). */}
                   <a
