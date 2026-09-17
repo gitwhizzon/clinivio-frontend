@@ -8,7 +8,7 @@ import { z } from "zod";
 import {
   Eye, EyeOff, Activity, AlertCircle, Building2,
 } from "lucide-react";
-import { iamApi } from "@/lib/api";
+import { iamApi, API_BASE } from "@/lib/api";
 import { useAuthStore } from "@/store/auth.store";
 import { AuthResponse } from "@/types";
 import { cn } from "@/lib/utils";
@@ -63,6 +63,20 @@ export default function LoginPage() {
   const [hostContext, setHostContext] = useState<HostContext>({ kind: "unknown" });
   useEffect(() => {
     setHostContext(resolveHostContext());
+  }, []);
+
+  // Reads ?error=sso_failed off the SSO callback's redirect (avoids
+  // useSearchParams' Suspense-boundary requirement for something this simple).
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("error") === "sso_failed") {
+      setServerError(
+        "Microsoft sign-in failed. Your account may not be registered as a platform admin, or you signed in with the wrong organization account.",
+      );
+      params.delete("error");
+      const query = params.toString();
+      window.history.replaceState(null, "", window.location.pathname + (query ? `?${query}` : ""));
+    }
   }, []);
 
   const isUnknownHost = hostContext.kind === "unknown";
@@ -345,6 +359,30 @@ export default function LoginPage() {
                   </p>
                 )}
               </form>
+
+              {hostContext.kind === "platform" && (
+                <>
+                  <div className="flex items-center gap-3 pt-1">
+                    <div className="h-px flex-1 bg-gray-200" />
+                    <span className="text-xs text-gray-400">or</span>
+                    <div className="h-px flex-1 bg-gray-200" />
+                  </div>
+                  {/* Plain navigation, not a fetch — the whole SSO flow is
+                      server-driven redirects (see auth.controller.ts). */}
+                  <a
+                    href={`${API_BASE}/auth/sso/microsoft`}
+                    className="w-full py-2.5 px-4 rounded-lg text-sm font-semibold border border-gray-300 text-gray-700 hover:bg-gray-50 transition-all flex items-center justify-center gap-2"
+                  >
+                    <svg className="w-4 h-4" viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                      <rect x="1" y="1" width="9" height="9" fill="#f25022" />
+                      <rect x="11" y="1" width="9" height="9" fill="#7fba00" />
+                      <rect x="1" y="11" width="9" height="9" fill="#00a4ef" />
+                      <rect x="11" y="11" width="9" height="9" fill="#ffb900" />
+                    </svg>
+                    Sign in with Microsoft
+                  </a>
+                </>
+              )}
 
               <p className="text-center text-xs text-gray-400 pt-1">
                 Secured by Clinivio · All activity is logged

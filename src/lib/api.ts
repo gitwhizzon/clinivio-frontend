@@ -74,7 +74,7 @@ function createApiInstance(baseURL: string): AxiosInstance {
 
 // ─── Single unified API base URL ──────────────────────────────────────────────
 
-const API_BASE =
+export const API_BASE =
   process.env.NEXT_PUBLIC_API_URL || "https://clinivio-backend.onrender.com";
 
 // All four instances point to the same backend.
