@@ -335,7 +335,7 @@ function OnboardModal({ onClose, onSuccess }: {
     gstin: '', drugLicenseNo: '',
     portalUrl: '', whatsappPhoneNumberId: '', wabaId: '', whatsappAccessToken: '',
     subscriptionTier: 'BASIC',
-    adminFirstName: '', adminLastName: '', adminEmail: '', adminPassword: '', adminPhone: '',
+    adminFirstName: '', adminLastName: '', adminEmail: '', adminPassword: '', adminPasswordConfirm: '', adminPhone: '',
   });
 
   // Auto-generate slug preview from name (used inline in JSX below)
@@ -345,24 +345,41 @@ function OnboardModal({ onClose, onSuccess }: {
   const [saving, setSaving]   = useState(false);
   const [error, setError]     = useState<{ message: string; details?: string[]; requestId?: string } | null>(null);
   const [showPwd, setShowPwd] = useState(false);
+  const [waTest, setWaTest]   = useState<{ testing: boolean; result: { ok: boolean; detail: string } | null }>({ testing: false, result: null });
 
   function generatePassword() {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789@#$!';
     let pwd = '';
     for (let i = 0; i < 10; i++) pwd += chars[Math.floor(Math.random() * chars.length)];
-    setForm(f => ({ ...f, adminPassword: pwd }));
+    setForm(f => ({ ...f, adminPassword: pwd, adminPasswordConfirm: pwd }));
+  }
+
+  async function testWhatsappCredentials() {
+    setWaTest({ testing: true, result: null });
+    try {
+      const { data } = await iamApi.post('/tenants/verify-whatsapp-credentials', {
+        phoneNumberId: form.whatsappPhoneNumberId,
+        accessToken: form.whatsappAccessToken,
+      });
+      setWaTest({ testing: false, result: data });
+    } catch {
+      setWaTest({ testing: false, result: { ok: false, detail: 'Could not reach the server to test — try again.' } });
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (form.adminPassword.length < 8) { setError({ message: 'Password must be at least 8 characters' }); return; }
+    if (form.adminPassword !== form.adminPasswordConfirm) { setError({ message: 'Password and confirmation do not match' }); return; }
     setSaving(true); setError(null);
     try {
       // NestJS @IsOptional() only skips validation for null/undefined — NOT for
       // empty strings. Strip blank values so optional regex validators (slug,
       // phone, etc.) are not triggered by fields the user left empty.
+      // adminPasswordConfirm is client-side only — the backend DTO has no such field.
+      const { adminPasswordConfirm, ...formForSubmit } = form;
       const payload = Object.fromEntries(
-        Object.entries(form).filter(([, v]) => v !== ''),
+        Object.entries(formForSubmit).filter(([, v]) => v !== ''),
       );
       const res = await iamApi.post('/tenants', payload);
       onSuccess(res.data.credentials);
@@ -489,9 +506,23 @@ function OnboardModal({ onClose, onSuccess }: {
               <div><label className="block text-xs font-medium text-gray-600 mb-1">WABA ID</label>
                 <input value={form.wabaId} onChange={e => setForm({ ...form, wabaId: e.target.value })}
                   placeholder="WhatsApp Business Account ID" className={inp} /></div>
-              <div><label className="block text-xs font-medium text-gray-600 mb-1">WhatsApp Access Token</label>
-                <input type="password" value={form.whatsappAccessToken} onChange={e => setForm({ ...form, whatsappAccessToken: e.target.value })}
-                  placeholder="Leave blank to use the shared platform WhatsApp number" className={inp} /></div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">WhatsApp Access Token</label>
+                <div className="flex gap-2">
+                  <input type="password" value={form.whatsappAccessToken} onChange={e => { setForm({ ...form, whatsappAccessToken: e.target.value }); setWaTest({ testing: false, result: null }); }}
+                    placeholder="Leave blank to use the shared platform WhatsApp number" className={inp + ' flex-1'} />
+                  <button type="button" onClick={testWhatsappCredentials}
+                    disabled={waTest.testing || !form.whatsappPhoneNumberId || !form.whatsappAccessToken}
+                    className="px-3 py-2 text-xs font-medium bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0">
+                    {waTest.testing ? 'Testing…' : 'Test'}
+                  </button>
+                </div>
+                {waTest.result && (
+                  <p className={`text-xs mt-1 ${waTest.result.ok ? 'text-green-600' : 'text-red-600'}`}>
+                    {waTest.result.ok ? '✓ ' : '✗ '}{waTest.result.detail}
+                  </p>
+                )}
+              </div>
             </div>
           </div>
 
@@ -528,6 +559,16 @@ function OnboardModal({ onClose, onSuccess }: {
                     Generate
                   </button>
                 </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Confirm Password *</label>
+                <input required type={showPwd ? 'text' : 'password'} minLength={8} value={form.adminPasswordConfirm}
+                  onChange={e => setForm({ ...form, adminPasswordConfirm: e.target.value })}
+                  placeholder="Re-type the password above"
+                  className={inp + (form.adminPasswordConfirm && form.adminPasswordConfirm !== form.adminPassword ? ' border-red-400 bg-red-50' : '')} />
+                {form.adminPasswordConfirm && form.adminPasswordConfirm !== form.adminPassword && (
+                  <p className="text-xs text-red-600 mt-1">Doesn&apos;t match the password above</p>
+                )}
               </div>
             </div>
           </div>
