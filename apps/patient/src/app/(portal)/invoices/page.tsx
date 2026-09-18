@@ -51,7 +51,7 @@ function InvoiceCard({ inv }: { inv: Invoice }) {
           amount,
           currency,
           order_id: orderId,
-          name: "Clinivio Health",
+          name: "Megnim Health",
           description: `Invoice #${inv.invoiceNumber}`,
           theme: { color: "#2563eb" },
           handler: async (response: any) => {

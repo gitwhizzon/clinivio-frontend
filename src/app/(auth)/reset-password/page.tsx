@@ -91,7 +91,7 @@ function ResetPasswordForm() {
           <div className="bg-gradient-to-r from-indigo-600 to-blue-600 px-6 py-5 text-white">
             <div className="flex items-center gap-2 mb-2">
               <Activity className="w-4 h-4 opacity-80" />
-              <span className="font-bold text-sm tracking-wide">Clinivio</span>
+              <span className="font-bold text-sm tracking-wide">Megnim</span>
             </div>
             <p className="text-white font-semibold text-base">Set New Password</p>
             <p className="text-blue-200 text-xs mt-0.5">Choose a strong password for your account</p>

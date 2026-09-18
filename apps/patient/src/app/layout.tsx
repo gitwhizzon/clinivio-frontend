@@ -6,7 +6,7 @@ import { Providers } from "@/components/Providers";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Clinivio — My Health",
+  title: "Megnim — My Health",
   description: "Patient health portal — view appointments, lab results, prescriptions and invoices.",
 };
 

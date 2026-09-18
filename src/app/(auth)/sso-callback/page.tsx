@@ -44,7 +44,7 @@ export default function SsoCallbackPage() {
       <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-sm w-full text-center space-y-4">
         <div className="flex items-center justify-center gap-2">
           <Activity className="w-5 h-5 text-blue-600" />
-          <span className="font-bold text-gray-900">Clinivio</span>
+          <span className="font-bold text-gray-900">Megnim</span>
         </div>
         {error ? (
           <>

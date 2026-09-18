@@ -44,7 +44,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
     )}>
       <div className="flex items-center gap-2 px-5 py-4 border-b">
         <HeartPulse className="h-6 w-6 text-primary" />
-        <span className="font-bold text-lg text-primary">Clinivio</span>
+        <span className="font-bold text-lg text-primary">Megnim</span>
       </div>
 
       <div className="px-4 py-3 border-b">
@@ -112,7 +112,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
             <Menu className="h-5 w-5" />
           </button>
           <HeartPulse className="h-5 w-5 text-primary" />
-          <span className="font-semibold text-primary">Clinivio Health</span>
+          <span className="font-semibold text-primary">Megnim Health</span>
         </header>
 
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">

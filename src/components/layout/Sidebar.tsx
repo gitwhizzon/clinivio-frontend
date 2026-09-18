@@ -168,7 +168,7 @@ export function Sidebar() {
               <Activity className="w-4 h-4 text-white" />
             </div>
             <div className="min-w-0">
-              <p className="text-white font-bold text-sm leading-tight">Clinivio</p>
+              <p className="text-white font-bold text-sm leading-tight">Megnim</p>
               <p className="text-slate-400 text-[10px] leading-tight truncate">Hospital Management</p>
             </div>
           </div>

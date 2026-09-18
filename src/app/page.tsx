@@ -20,7 +20,7 @@ export default function RootPage() {
     <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="flex flex-col items-center gap-3">
         <div className="h-10 w-10 rounded-full border-4 border-primary border-t-transparent animate-spin" />
-        <p className="text-sm text-muted-foreground">Loading Clinivio…</p>
+        <p className="text-sm text-muted-foreground">Loading Megnim…</p>
       </div>
     </div>
   );

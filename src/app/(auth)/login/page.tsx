@@ -134,7 +134,7 @@ export default function LoginPage() {
               <Activity className="w-6 h-6 text-white" />
             </div>
             <div>
-              <p className="text-white font-extrabold text-2xl tracking-tight leading-none">Clinivio</p>
+              <p className="text-white font-extrabold text-2xl tracking-tight leading-none">Megnim</p>
               <p className="text-blue-300 text-sm mt-0.5">by Whizzon.ai · Hospital Management</p>
             </div>
           </div>
@@ -209,7 +209,7 @@ export default function LoginPage() {
             )}>
               <div className="flex items-center gap-2 mb-2">
                 <Activity className="w-4 h-4 opacity-80" />
-                <span className="font-bold text-sm tracking-wide">Clinivio</span>
+                <span className="font-bold text-sm tracking-wide">Megnim</span>
               </div>
               {isHospitalLogin ? (
                 <>
@@ -222,7 +222,7 @@ export default function LoginPage() {
                 </>
               ) : (
                 <>
-                  <p className="text-white font-semibold text-base">Sign in to Clinivio</p>
+                  <p className="text-white font-semibold text-base">Sign in to Megnim</p>
                   <p className="text-blue-200 text-xs mt-0.5">Platform Admin · Hospital Staff</p>
                 </>
               )}
@@ -387,7 +387,7 @@ export default function LoginPage() {
               )}
 
               <p className="text-center text-xs text-gray-400 pt-1">
-                Secured by Clinivio · All activity is logged
+                Secured by Megnim · All activity is logged
               </p>
             </div>
           </div>

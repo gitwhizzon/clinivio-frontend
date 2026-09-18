@@ -44,7 +44,7 @@ function generateRxHtml(c: Consultation, patient: { firstName: string; lastName:
 <body>
   <div class="header">
     <h2 style="margin:0;color:#2563eb;">Medical Prescription</h2>
-    <p style="margin:2px 0;font-size:12px;color:#666;">Generated via Clinivio Patient Portal</p>
+    <p style="margin:2px 0;font-size:12px;color:#666;">Generated via Megnim Patient Portal</p>
   </div>
 
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">

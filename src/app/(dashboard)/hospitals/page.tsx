@@ -94,7 +94,7 @@ function buildCredentialHtml(creds: {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Clinivio Credentials — ${title}</title>
+<title>Megnim Credentials — ${title}</title>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f1f5f9;display:flex;justify-content:center;align-items:flex-start;min-height:100vh;padding:40px 20px}
@@ -135,7 +135,7 @@ function buildCredentialHtml(creds: {
     <div class="logo">
       <div class="logo-icon">⚕️</div>
       <div>
-        <div class="logo-text">Clinivio</div>
+        <div class="logo-text">Megnim</div>
         <div class="logo-sub">by Whizzon.ai · Hospital Management</div>
       </div>
     </div>
@@ -174,14 +174,14 @@ function buildCredentialHtml(creds: {
 
     <div class="login-box">
       <div class="login-title">How to log in</div>
-      <div class="login-step"><span class="step-num">1</span><span>Open the Clinivio portal: <span class="url">${loginUrl}</span></span></div>
+      <div class="login-step"><span class="step-num">1</span><span>Open the Megnim portal: <span class="url">${loginUrl}</span></span></div>
       ${creds.tenantSlug ? `<div class="login-step"><span class="step-num">2</span><span>Enter Hospital ID: <strong>${creds.tenantSlug}</strong></span></div>` : ''}
       <div class="login-step"><span class="step-num">${creds.tenantSlug ? '3' : '2'}</span><span>Enter email and password above</span></div>
       <div class="login-step"><span class="step-num">${creds.tenantSlug ? '4' : '3'}</span><span>Change password immediately via <strong>Settings → Security</strong></span></div>
     </div>
   </div>
   <div class="footer">
-    <span class="footer-note">Clinivio · Powered by Whizzon.ai</span>
+    <span class="footer-note">Megnim · Powered by Whizzon.ai</span>
     <span class="confidential">CONFIDENTIAL</span>
   </div>
 </div>
@@ -212,7 +212,7 @@ function CredentialsModal({ creds, title, onClose }: {
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
     a.href     = url;
-    a.download = `clinivio-credentials-${creds.tenantSlug ?? creds.tenantId.slice(0, 8)}.html`;
+    a.download = `megnim-credentials-${creds.tenantSlug ?? creds.tenantId.slice(0, 8)}.html`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -413,7 +413,7 @@ function OnboardModal({ onClose, onSuccess }: {
                 <label className="block text-xs font-medium text-gray-600 mb-1">Portal URL</label>
                 <input value={form.portalUrl} onChange={e => setForm({ ...form, portalUrl: e.target.value })}
                   placeholder="greenvalley.megnim.com" className={inp} />
-                <p className="text-xs text-gray-400 mt-1">The URL where this hospital accesses Clinivio (optional)</p>
+                <p className="text-xs text-gray-400 mt-1">The URL where this hospital accesses Megnim (optional)</p>
               </div>
             </div>
           </div>
