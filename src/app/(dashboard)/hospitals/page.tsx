@@ -189,6 +189,50 @@ function buildCredentialHtml(creds: {
 </html>`;
 }
 
+type SetupCheck = { name: string; status: 'ok' | 'warn' | 'fail'; detail: string };
+type SetupResult = { overall: 'ok' | 'warn' | 'fail'; checks: SetupCheck[] };
+
+const CHECK_ICON: Record<SetupCheck['status'], string> = { ok: '✅', warn: '⚠️', fail: '❌' };
+
+function SetupVerification({ tenantId }: { tenantId: string }) {
+  const [result, setResult]   = useState<SetupResult | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState<string | null>(null);
+
+  const run = useCallback(() => {
+    setLoading(true); setError(null);
+    iamApi.get<SetupResult>(`/tenants/${tenantId}/verify-setup`)
+      .then(r => setResult(r.data))
+      .catch(() => setError('Could not run setup checks — try again in a moment.'))
+      .finally(() => setLoading(false));
+  }, [tenantId]);
+
+  useEffect(() => { run(); }, [run]);
+
+  return (
+    <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5">
+      <div className="flex items-center justify-between mb-1.5">
+        <p className="text-xs font-semibold text-gray-600">Setup check</p>
+        <button onClick={run} disabled={loading} className="text-xs text-blue-600 hover:text-blue-800 disabled:opacity-50">
+          {loading ? 'Checking…' : 'Re-check'}
+        </button>
+      </div>
+      {loading && !result && <p className="text-xs text-gray-400">Running checks…</p>}
+      {error && <p className="text-xs text-red-600">{error}</p>}
+      {result && (
+        <ul className="space-y-1">
+          {result.checks.map(c => (
+            <li key={c.name} className="text-xs flex items-start gap-1.5">
+              <span>{CHECK_ICON[c.status]}</span>
+              <span><span className="font-medium text-gray-700">{c.name}:</span> <span className="text-gray-500">{c.detail}</span></span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function CredentialsModal({ creds, title, onClose }: {
   creds: {
     email: string;
@@ -255,6 +299,8 @@ function CredentialsModal({ creds, title, onClose }: {
           <CredentialBox label="Admin Name"   value={creds.adminName} />
           <CredentialBox label="Login Email"  value={creds.email}     mono />
           <CredentialBox label="Password"     value={password}        mono />
+
+          <SetupVerification tenantId={creds.tenantId} />
         </div>
         <div className="px-6 pb-5 space-y-2">
           {/* Download button */}
