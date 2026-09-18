@@ -81,7 +81,13 @@ function buildCredentialHtml(creds: {
     day: '2-digit', month: 'short', year: 'numeric',
     hour: '2-digit', minute: '2-digit',
   });
-  const loginUrl = 'https://clinivio-frontend.vercel.app/login';
+  // Point straight at the hospital's own subdomain — it auto-detects the
+  // tenant from the hostname, so staff never have to type a Hospital ID.
+  // Falls back to the platform host only for the (non-tenant) admin case.
+  const platformDomain = (process.env.NEXT_PUBLIC_PLATFORM_DOMAINS ?? 'megnim.com').split(',')[0].trim();
+  const loginUrl = creds.tenantSlug
+    ? `https://${creds.tenantSlug}.${platformDomain}/login`
+    : `https://app.${platformDomain}/login`;
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -144,9 +150,9 @@ function buildCredentialHtml(creds: {
 
     ${creds.tenantSlug ? `
     <div class="slug-box">
-      <div class="slug-label">Hospital ID (required at login)</div>
+      <div class="slug-label">Hospital ID</div>
       <div class="slug-value">${creds.tenantSlug}</div>
-      <div class="slug-note">Enter this in the "Hospital ID" field on the login page</div>
+      <div class="slug-note">Already built into the portal link below — no need to type it in.</div>
     </div>` : ''}
 
     <div class="field">
@@ -406,7 +412,7 @@ function OnboardModal({ onClose, onSuccess }: {
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Portal URL</label>
                 <input value={form.portalUrl} onChange={e => setForm({ ...form, portalUrl: e.target.value })}
-                  placeholder="greenvalley.clinivio.ai" className={inp} />
+                  placeholder="greenvalley.megnim.com" className={inp} />
                 <p className="text-xs text-gray-400 mt-1">The URL where this hospital accesses Clinivio (optional)</p>
               </div>
             </div>
@@ -658,7 +664,7 @@ function EditTenantModal({ tenant, onClose, onSuccess }: {
               </div>
               <div><label className="block text-xs font-medium text-gray-600 mb-1">Portal URL</label>
                 <input value={form.portalUrl} onChange={e => setForm({ ...form, portalUrl: e.target.value })}
-                  placeholder="greenvalley.clinivio.ai" className={inp} /></div>
+                  placeholder="greenvalley.megnim.com" className={inp} /></div>
             </div>
           </div>
 
