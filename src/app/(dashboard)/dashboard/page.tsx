@@ -54,14 +54,19 @@ function StatusBadge({ status }: { status: string }) {
 function AdminAnalytics() {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const router = useRouter();
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    setLoading(true);
+    setError(false);
     appointmentApi.get('/stats/admin/dashboard')
       .then(r => setStats(r.data))
-      .catch(() => {})
+      .catch(() => setError(true))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => { load(); }, [load]);
 
   if (loading) {
     return (
@@ -72,7 +77,16 @@ function AdminAnalytics() {
       </div>
     );
   }
-  if (!stats) return null;
+  if (error || !stats) {
+    return (
+      <div className="mb-6 flex items-center justify-between rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <span>Couldn&apos;t load dashboard stats.</span>
+        <button onClick={load} className="font-medium underline hover:no-underline">
+          Retry
+        </button>
+      </div>
+    );
+  }
 
   const invoiceTypes: Record<string, { label: string; color: string }> = {
     CONSULTATION: { label: 'Consultation', color: 'bg-blue-500' },
@@ -239,6 +253,7 @@ export default function ActivePatientBoard() {
   const [patients, setPatients] = useState<ActivePatient[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [filterDept, setFilterDept] = useState<string>('');
   const [filterVisit, setFilterVisit] = useState<string>('');
   const [filterStatus, setFilterStatus] = useState<string>('');
@@ -261,7 +276,8 @@ export default function ActivePatientBoard() {
         confirmed: data.filter(p => p.status === 'CONFIRMED').length,
         inProgress: data.filter(p => ['CHECKED_IN', 'IN_PROGRESS'].includes(p.status)).length,
       });
-    } catch (e) { console.error(e); }
+      setError(false);
+    } catch (e) { console.error(e); setError(true); }
     finally { setLoading(false); }
   }, [filterDept, filterVisit, filterStatus]);
 
@@ -341,6 +357,13 @@ export default function ActivePatientBoard() {
 
       {loading ? (
         <div className="flex items-center justify-center h-48 text-gray-400">Loading...</div>
+      ) : error ? (
+        <div className="flex flex-col items-center justify-center h-48 text-red-500 gap-2">
+          <p className="text-sm">Couldn&apos;t load the active patient board.</p>
+          <button onClick={fetchActive} className="text-sm font-medium underline hover:no-underline">
+            Retry
+          </button>
+        </div>
       ) : patients.length === 0 ? (
         <div className="flex flex-col items-center justify-center h-48 text-gray-400">
           <p className="text-4xl mb-2">🏥</p>

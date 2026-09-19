@@ -15,17 +15,29 @@ import type { Appointment, LabOrder, Invoice } from "@/types";
 export default function DashboardPage() {
   const patient = useAuthStore((s) => s.patient);
 
-  const { data: appts } = useQuery({
+  const {
+    data: appts,
+    isError: apptsError,
+    refetch: refetchAppts,
+  } = useQuery({
     queryKey: ["appointments"],
     queryFn: () => api.get<{ data: Appointment[] }>("/patient-portal/appointments?limit=3").then((r) => r.data.data),
   });
 
-  const { data: labs } = useQuery({
+  const {
+    data: labs,
+    isError: labsError,
+    refetch: refetchLabs,
+  } = useQuery({
     queryKey: ["lab-results"],
     queryFn: () => api.get<{ data: LabOrder[] }>("/patient-portal/lab-results?limit=3").then((r) => r.data.data),
   });
 
-  const { data: invoices } = useQuery({
+  const {
+    data: invoices,
+    isError: invoicesError,
+    refetch: refetchInvoices,
+  } = useQuery({
     queryKey: ["invoices"],
     queryFn: () => api.get<{ data: Invoice[] }>("/patient-portal/invoices?limit=3").then((r) => r.data.data),
   });
@@ -33,6 +45,7 @@ export default function DashboardPage() {
   const pendingInvoices = invoices?.filter((i) => i.paymentStatus === "PENDING") ?? [];
   const upcomingAppts = appts?.filter((a) => a.status !== "CANCELLED" && a.status !== "COMPLETED") ?? [];
   const completedLabs = labs?.filter((l) => l.status === "COMPLETED") ?? [];
+  const hasLoadError = apptsError || labsError || invoicesError;
 
   return (
     <div className="space-y-6 max-w-5xl">
@@ -43,6 +56,18 @@ export default function DashboardPage() {
         </h1>
         <p className="text-muted-foreground text-sm mt-0.5">Here&apos;s an overview of your health records.</p>
       </div>
+
+      {hasLoadError && (
+        <div className="flex items-center justify-between rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">
+          <span>Some of your records couldn&apos;t be loaded — the summary below may be incomplete.</span>
+          <button
+            onClick={() => { refetchAppts(); refetchLabs(); refetchInvoices(); }}
+            className="font-medium underline hover:no-underline whitespace-nowrap ml-3"
+          >
+            Retry
+          </button>
+        </div>
+      )}
 
       {/* KPI cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -107,7 +132,9 @@ export default function DashboardPage() {
             <Link href="/appointments" className="text-xs text-primary hover:underline">View all</Link>
           </CardHeader>
           <CardContent className="space-y-3 pt-0">
-            {!appts || appts.length === 0 ? (
+            {apptsError ? (
+              <p className="text-sm text-red-600 py-4 text-center">Couldn&apos;t load appointments</p>
+            ) : !appts || appts.length === 0 ? (
               <p className="text-sm text-muted-foreground py-4 text-center">No appointments yet</p>
             ) : (
               appts.map((a) => (
@@ -143,7 +170,9 @@ export default function DashboardPage() {
             <Link href="/lab-results" className="text-xs text-primary hover:underline">View all</Link>
           </CardHeader>
           <CardContent className="space-y-3 pt-0">
-            {!labs || labs.length === 0 ? (
+            {labsError ? (
+              <p className="text-sm text-red-600 py-4 text-center">Couldn&apos;t load lab results</p>
+            ) : !labs || labs.length === 0 ? (
               <p className="text-sm text-muted-foreground py-4 text-center">No lab results yet</p>
             ) : (
               labs.map((l) => (

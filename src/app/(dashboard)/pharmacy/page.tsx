@@ -575,12 +575,15 @@ function PharmacyAnalyticsTab() {
   const [dashLoading, setDashLoading] = useState(true);
   const [period, setPeriod] = useState('30');
 
-  useEffect(() => {
+  const loadStats = useCallback(() => {
+    setLoading(true);
     appointmentApi.get('/stats/pharmacy')
       .then(r => setData(r.data))
-      .catch(() => {})
+      .catch(() => setData(null))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => { loadStats(); }, [loadStats]);
 
   useEffect(() => {
     setDashLoading(true);
@@ -596,7 +599,14 @@ function PharmacyAnalyticsTab() {
   };
 
   if (loading) return <div className="flex items-center justify-center h-48 text-gray-400 text-sm">Loading analytics…</div>;
-  if (!data) return <div className="text-center text-gray-400 py-12">Analytics unavailable</div>;
+  if (!data) return (
+    <div className="flex flex-col items-center gap-2 text-center text-gray-400 py-12">
+      <p>Couldn&apos;t load pharmacy analytics.</p>
+      <button onClick={loadStats} className="text-sm font-medium text-blue-600 underline hover:no-underline">
+        Retry
+      </button>
+    </div>
+  );
 
   const inv = Object.assign(
     { totalItems: 0, inventoryValue: 0, lowStockCount: 0, lowStockValue: 0, expiringSoonCount: 0, expiringSoonValue: 0, categoryBreakdown: {} as Record<string, { count: number; value: number }> },

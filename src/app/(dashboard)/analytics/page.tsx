@@ -76,6 +76,15 @@ export default function AnalyticsPage() {
   const [loadingAge, setLoadingAge]       = useState(true);
   const [labData, setLabData]             = useState<LabSummary | null>(null);
   const [loadingLab, setLoadingLab]       = useState(true);
+  const [failedSections, setFailedSections] = useState<Set<string>>(new Set());
+
+  const markFailed = (section: string, failed: boolean) => {
+    setFailedSections(prev => {
+      const next = new Set(prev);
+      if (failed) next.add(section); else next.delete(section);
+      return next;
+    });
+  };
 
   const mineParam = mineOnly ? '&mine=true' : '';
 
@@ -87,42 +96,48 @@ export default function AnalyticsPage() {
     setMedicineData(null);
     setVitalData(null);
     appointmentApi.get(`/analytics/conditions?v=1${mineParam}`)
-      .then(r => setConditionData(r.data))
-      .catch(() => {})
+      .then(r => { setConditionData(r.data); markFailed('conditions', false); })
+      .catch(() => markFailed('conditions', true))
       .finally(() => setLoadingConditions(false));
   }, [mineParam]);
 
   useEffect(() => { loadConditions(); }, [loadConditions]);
 
-  useEffect(() => {
+  const loadAgeDistribution = useCallback(() => {
     setLoadingAge(true);
     appointmentApi.get(`/analytics/age-distribution?v=1${mineParam}`)
-      .then(r => setAgeData(r.data?.distribution ?? []))
-      .catch(() => setAgeData([]))
+      .then(r => { setAgeData(r.data?.distribution ?? []); markFailed('age', false); })
+      .catch(() => { setAgeData([]); markFailed('age', true); })
       .finally(() => setLoadingAge(false));
   }, [mineParam]);
 
-  useEffect(() => {
+  useEffect(() => { loadAgeDistribution(); }, [loadAgeDistribution]);
+
+  const loadLabSummary = useCallback(() => {
     setLoadingLab(true);
     appointmentApi.get(`/analytics/lab-summary?days=${period}${mineParam}`)
-      .then(r => setLabData(r.data))
-      .catch(() => setLabData(null))
+      .then(r => { setLabData(r.data); markFailed('lab', false); })
+      .catch(() => { setLabData(null); markFailed('lab', true); })
       .finally(() => setLoadingLab(false));
   }, [mineParam, period]);
 
-  useEffect(() => {
+  useEffect(() => { loadLabSummary(); }, [loadLabSummary]);
+
+  const loadDoctorStats = useCallback(() => {
     if (!isDoctor) return;
     appointmentApi.get('/analytics/my-stats')
-      .then(r => setDoctorStats(r.data))
-      .catch(() => {});
+      .then(r => { setDoctorStats(r.data); markFailed('doctorStats', false); })
+      .catch(() => markFailed('doctorStats', true));
   }, [isDoctor]);
+
+  useEffect(() => { loadDoctorStats(); }, [loadDoctorStats]);
 
   const loadMedicinePatterns = useCallback((condition: string) => {
     setLoadingMeds(true);
     const q = condition ? `&condition=${encodeURIComponent(condition)}` : '';
     appointmentApi.get(`/analytics/medicine-patterns?v=1${q}${mineParam}`)
-      .then(r => setMedicineData(r.data))
-      .catch(() => {})
+      .then(r => { setMedicineData(r.data); markFailed('medicines', false); })
+      .catch(() => markFailed('medicines', true))
       .finally(() => setLoadingMeds(false));
   }, [mineParam]);
 
@@ -130,10 +145,21 @@ export default function AnalyticsPage() {
     if (!condition) return;
     setLoadingVitals(true);
     appointmentApi.get(`/analytics/vital-trends?condition=${encodeURIComponent(condition)}${mineParam}`)
-      .then(r => setVitalData(r.data))
-      .catch(() => {})
+      .then(r => { setVitalData(r.data); markFailed('vitals', false); })
+      .catch(() => markFailed('vitals', true))
       .finally(() => setLoadingVitals(false));
   }, [mineParam]);
+
+  function retryFailedSections() {
+    loadConditions();
+    loadAgeDistribution();
+    loadLabSummary();
+    loadDoctorStats();
+    if (selectedCondition) {
+      loadMedicinePatterns(selectedCondition);
+      loadVitalTrends(selectedCondition);
+    }
+  }
 
   function selectCondition(c: string) {
     setSelectedCondition(c);
@@ -292,6 +318,15 @@ ${doctorSection}${condTable}${ageTable}${medTable}${vitalTable}${labTable}${aiSe
 
   return (
     <div className="max-w-7xl mx-auto space-y-5">
+
+      {failedSections.size > 0 && (
+        <div className="flex items-center justify-between rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">
+          <span>Some analytics couldn&apos;t be loaded — the charts below may be showing stale or partial data.</span>
+          <button onClick={retryFailedSections} className="font-medium underline hover:no-underline whitespace-nowrap ml-3">
+            Retry
+          </button>
+        </div>
+      )}
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="flex items-start justify-between gap-4 flex-wrap">

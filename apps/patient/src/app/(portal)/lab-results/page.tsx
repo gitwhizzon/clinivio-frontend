@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, FlaskConical, ChevronDown, ChevronUp, AlertTriangle, Printer, MessageCircle, Mail } from "lucide-react";
+import { Loader2, FlaskConical, AlertCircle, ChevronDown, ChevronUp, AlertTriangle, Printer, MessageCircle, Mail } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import api from "@/lib/api";
@@ -179,7 +179,7 @@ function LabOrderCard({ order }: { order: LabOrder }) {
 export default function LabResultsPage() {
   const [page, setPage] = useState(1);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["lab-results", page],
     queryFn: () =>
       api.get<{ data: LabOrder[]; totalPages: number }>(
@@ -196,6 +196,14 @@ export default function LabResultsPage() {
 
       {isLoading ? (
         <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
+      ) : isError ? (
+        <Card>
+          <CardContent className="py-12 text-center space-y-3">
+            <AlertCircle className="h-10 w-10 text-red-400 mx-auto" />
+            <p className="text-muted-foreground">Couldn&apos;t load your lab results.</p>
+            <Button variant="outline" size="sm" onClick={() => refetch()}>Retry</Button>
+          </CardContent>
+        </Card>
       ) : !data?.data.length ? (
         <Card>
           <CardContent className="py-12 text-center">
