@@ -61,7 +61,7 @@
     "jest-environment-jsdom": "^30.5.1",
     "lint-staged": "^15.2.4",
     "postcss": "^8.5.23",
-    "tailwindcss": "^3.4.4",
+    "tailwindcss": "^4.3.3",
     "tailwindcss-animate": "^1.0.7",
     "typescript": "^5.4.5"
   },
