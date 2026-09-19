@@ -348,9 +348,17 @@ function OnboardModal({ onClose, onSuccess }: {
   const [waTest, setWaTest]   = useState<{ testing: boolean; result: { ok: boolean; detail: string } | null }>({ testing: false, result: null });
 
   function generatePassword() {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789@#$!';
-    let pwd = '';
-    for (let i = 0; i < 10; i++) pwd += chars[Math.floor(Math.random() * chars.length)];
+    // Guarantee at least one letter and one digit (backend requires both) —
+    // a purely random pick from the combined alphabet had a real chance of
+    // landing on an all-letter or all-digit string that the server would reject.
+    const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz';
+    const digits = '23456789';
+    const symbols = '@#$!';
+    const all = letters + digits + symbols;
+    const pick = (s: string) => s[Math.floor(Math.random() * s.length)];
+    const required = [pick(letters), pick(digits)];
+    const rest = Array.from({ length: 8 }, () => pick(all));
+    const pwd = [...required, ...rest].sort(() => Math.random() - 0.5).join('');
     setForm(f => ({ ...f, adminPassword: pwd, adminPasswordConfirm: pwd }));
   }
 
