@@ -5,15 +5,18 @@ import { TenantProfile } from "@/lib/print";
 
 interface AuthState {
   user: User | null;
-  token: string | null;
-  refreshToken: string | null;
   isAuthenticated: boolean;
   tenantId: string | null;
-  /** Slug entered at login — sent as X-Tenant-Slug on every API request */
+  /** Slug entered at login — used as a dev/preview fallback for X-Tenant-Slug
+   *  when the hostname itself doesn't carry the tenant (see lib/tenant.ts).
+   *  Not sensitive — it's visible in the URL for every real tenant anyway. */
   tenantSlug: string | null;
   /** Cached hospital profile — fetched once in DashboardLayout, used everywhere for printing */
   tenantProfile: TenantProfile | null;
-  setAuth: (user: User, token: string, refreshToken: string, tenantSlug?: string) => void;
+  // Access/refresh tokens are httpOnly cookies now (set by the backend) —
+  // never stored here, never readable by JS. setAuth only persists what the
+  // UI actually needs.
+  setAuth: (user: User, tenantSlug?: string) => void;
   clearAuth: () => void;
   logout: () => void;
   updateUser: (user: Partial<User>) => void;
@@ -24,18 +27,14 @@ export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
       user: null,
-      token: null,
-      refreshToken: null,
       isAuthenticated: false,
       tenantId: null,
       tenantSlug: null,
       tenantProfile: null,
 
-      setAuth: (user, token, refreshToken, tenantSlug) =>
+      setAuth: (user, tenantSlug) =>
         set({
           user,
-          token,
-          refreshToken,
           isAuthenticated: true,
           tenantId: user.tenantId,
           tenantSlug: tenantSlug ?? null,
@@ -44,8 +43,6 @@ export const useAuthStore = create<AuthState>()(
       clearAuth: () =>
         set({
           user: null,
-          token: null,
-          refreshToken: null,
           isAuthenticated: false,
           tenantId: null,
           tenantSlug: null,
@@ -55,8 +52,6 @@ export const useAuthStore = create<AuthState>()(
       logout: () =>
         set({
           user: null,
-          token: null,
-          refreshToken: null,
           isAuthenticated: false,
           tenantId: null,
           tenantSlug: null,

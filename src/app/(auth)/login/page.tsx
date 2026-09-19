@@ -102,9 +102,10 @@ export default function LoginPage() {
       if (effectiveSlug) payload.slug = effectiveSlug;
 
       const { data } = await iamApi.post<AuthResponse>("/auth/login", payload);
-      // Store the slug so the API client can send X-Tenant-Slug on every
-      // subsequent request (tenant context for the middleware).
-      setAuth(data.user, data.accessToken, data.refreshToken, effectiveSlug);
+      // accessToken/refreshToken arrive as httpOnly cookies now — only the
+      // slug is stored, as a dev/preview fallback for hosts with no real
+      // subdomain (lib/api.ts prefers deriving it fresh from the hostname).
+      setAuth(data.user, effectiveSlug);
       router.replace(ROLE_DEST[data.user.role] ?? "/dashboard");
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } };

@@ -1,21 +1,23 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from "axios";
 import { useAuthStore } from "@/store/auth.store";
+import { resolveHostContext } from "@/lib/tenant";
 
-// ─── LocalStorage helpers (client-side only) ─────────────────────────────────
-
-function getAuthState(): { token: string | null; refreshToken: string | null; tenantSlug: string | null } {
-  if (typeof window === "undefined") return { token: null, refreshToken: null, tenantSlug: null };
+// ─── Tenant slug ──────────────────────────────────────────────────────────────
+// Prefer the current hostname (hansvl.megnim.com -> "hansvl") over whatever
+// was stored at login — it's always fresh and can't go stale/tampered like a
+// persisted value could. Only falls back to the stored slug on hosts with no
+// real subdomain to read (localhost, Vercel/Render preview URLs) — see
+// lib/tenant.ts and the login page's dev-fallback field.
+function getTenantSlug(): string | null {
+  const hostContext = resolveHostContext();
+  if (hostContext.kind === "tenant") return hostContext.slug;
+  if (typeof window === "undefined") return null;
   try {
     const raw = localStorage.getItem("clinivio-auth");
-    if (!raw) return { token: null, refreshToken: null, tenantSlug: null };
-    const parsed = JSON.parse(raw);
-    return {
-      token:        parsed?.state?.token        ?? null,
-      refreshToken: parsed?.state?.refreshToken ?? null,
-      tenantSlug:   parsed?.state?.tenantSlug    ?? null,
-    };
+    if (!raw) return null;
+    return JSON.parse(raw)?.state?.tenantSlug ?? null;
   } catch {
-    return { token: null, refreshToken: null, tenantSlug: null };
+    return null;
   }
 }
 
@@ -26,29 +28,23 @@ function redirectToLogin() {
 }
 
 // ─── Silent access-token refresh ─────────────────────────────────────────────
-// Refresh tokens now rotate server-side (one-time use) — the old token is
-// deleted the moment it's redeemed, so every 401 must go through this single
-// shared refresh call (never a plain read of the stored token) or concurrent
-// requests would race to redeem the same refresh token and half of them
-// would fail. The successful caller updates the store with the NEW rotated
-// pair so the next refresh has a token to redeem too.
-let refreshPromise: Promise<string | null> | null = null;
+// Access/refresh tokens are httpOnly cookies now (backend sets them via
+// Set-Cookie) — this client never reads or stores them. Refresh tokens
+// rotate server-side (one-time use), so every 401 must go through this
+// single shared refresh call rather than each failed request refreshing
+// independently, or concurrent requests would race to redeem the same
+// one-time refresh cookie and half of them would fail.
+let refreshPromise: Promise<boolean> | null = null;
 
-async function refreshAccessToken(): Promise<string | null> {
+async function refreshAccessToken(): Promise<boolean> {
   if (refreshPromise) return refreshPromise;
 
   refreshPromise = (async () => {
-    const { refreshToken } = getAuthState();
-    if (!refreshToken) return null;
     try {
-      const { data } = await axios.post(`${API_BASE}/auth/refresh`, { refreshToken });
-      const store = useAuthStore.getState();
-      if (store.user) {
-        store.setAuth(store.user, data.accessToken, data.refreshToken, store.tenantSlug ?? undefined);
-      }
-      return data.accessToken as string;
+      await iamApi.post("/auth/refresh");
+      return true;
     } catch {
-      return null;
+      return false;
     } finally {
       refreshPromise = null;
     }
@@ -63,27 +59,19 @@ function createApiInstance(baseURL: string): AxiosInstance {
   const instance = axios.create({
     baseURL,
     timeout: 15_000,
+    withCredentials: true, // send/receive the httpOnly auth cookies
     headers: { "Content-Type": "application/json" },
   });
 
-  // Request interceptor — attach Bearer token + X-Tenant-Slug
+  // Request interceptor — attach X-Tenant-Slug (auth itself rides the cookie jar)
   instance.interceptors.request.use(
     (config: InternalAxiosRequestConfig) => {
-      const { token, tenantSlug } = getAuthState();
-
-      if (token && config.headers) {
-        config.headers.Authorization = `Bearer ${token}`;
-      }
-
-      // Send the tenant slug on every request so TenantContextMiddleware can
-      // set the correct DataSource even when no subdomain is present
-      // (e.g. direct Render/Vercel URLs).
-      // Skip auth endpoints — login uses slug in the request body, not header.
+      const tenantSlug = getTenantSlug();
+      // Skip auth endpoints — login sends slug in the request body, not a header.
       const isAuthEndpoint = config.url?.startsWith("/auth/");
       if (tenantSlug && config.headers && !isAuthEndpoint) {
         config.headers["X-Tenant-Slug"] = tenantSlug;
       }
-
       return config;
     },
     (error) => Promise.reject(error)
@@ -105,10 +93,7 @@ function createApiInstance(baseURL: string): AxiosInstance {
         !isAuthEndpoint
       ) {
         original._retriedAfterRefresh = true;
-        const newAccessToken = await refreshAccessToken();
-        if (newAccessToken) {
-          original.headers = original.headers ?? ({} as any);
-          (original.headers as any).Authorization = `Bearer ${newAccessToken}`;
+        if (await refreshAccessToken()) {
           return instance(original);
         }
       }

@@ -30,7 +30,7 @@ export default function SsoCallbackPage() {
     iamApi
       .post<AuthResponse>("/auth/sso/exchange", { code })
       .then(({ data }) => {
-        setAuth(data.user, data.accessToken, data.refreshToken);
+        setAuth(data.user);
         router.replace(ROLE_DEST[data.user.role] ?? "/hospitals");
       })
       .catch(() => {

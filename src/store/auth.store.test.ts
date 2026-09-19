@@ -26,28 +26,25 @@ describe('useAuthStore', () => {
     const state = useAuthStore.getState();
     expect(state.isAuthenticated).toBe(false);
     expect(state.user).toBeNull();
-    expect(state.token).toBeNull();
   });
 
   it('setAuth logs the user in and derives tenantId from the user', () => {
-    useAuthStore.getState().setAuth(mockUser, 'access-token', 'refresh-token', 'citihospital');
+    useAuthStore.getState().setAuth(mockUser, 'citihospital');
 
     const state = useAuthStore.getState();
     expect(state.isAuthenticated).toBe(true);
     expect(state.user).toEqual(mockUser);
-    expect(state.token).toBe('access-token');
-    expect(state.refreshToken).toBe('refresh-token');
     expect(state.tenantId).toBe('tenant-1');
     expect(state.tenantSlug).toBe('citihospital');
   });
 
   it('setAuth without a slug leaves tenantSlug null (platform admin login)', () => {
-    useAuthStore.getState().setAuth(mockUser, 'access-token', 'refresh-token');
+    useAuthStore.getState().setAuth(mockUser);
     expect(useAuthStore.getState().tenantSlug).toBeNull();
   });
 
   it('logout clears all auth state including tenantProfile', () => {
-    useAuthStore.getState().setAuth(mockUser, 'access-token', 'refresh-token', 'citihospital');
+    useAuthStore.getState().setAuth(mockUser, 'citihospital');
     useAuthStore.getState().setTenantProfile({ name: 'City Hospital' } as never);
 
     useAuthStore.getState().logout();
@@ -55,14 +52,13 @@ describe('useAuthStore', () => {
     const state = useAuthStore.getState();
     expect(state.isAuthenticated).toBe(false);
     expect(state.user).toBeNull();
-    expect(state.token).toBeNull();
     expect(state.tenantId).toBeNull();
     expect(state.tenantSlug).toBeNull();
     expect(state.tenantProfile).toBeNull();
   });
 
   it('updateUser merges partial fields into the existing user', () => {
-    useAuthStore.getState().setAuth(mockUser, 'access-token', 'refresh-token');
+    useAuthStore.getState().setAuth(mockUser);
     useAuthStore.getState().updateUser({ firstName: 'Updated' });
 
     expect(useAuthStore.getState().user).toEqual({ ...mockUser, firstName: 'Updated' });
