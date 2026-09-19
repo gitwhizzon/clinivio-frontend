@@ -40,7 +40,7 @@ export default function RegisterPage() {
     try {
       const payload = { ...data, email: data.email || undefined };
       const res = await api.post("/patient-portal/auth/register", payload);
-      setAuth(res.data.accessToken, res.data.patient);
+      setAuth(res.data.patient);
       toast({ title: "Account created!", description: "Welcome to your health portal.", variant: "success" });
       router.push("/dashboard");
     } catch (err: any) {

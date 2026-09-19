@@ -13,25 +13,25 @@ export interface PatientUser {
 }
 
 interface AuthState {
-  token: string | null;
   tenantId: string | null;
   patient: PatientUser | null;
   isAuthenticated: boolean;
-  setAuth: (token: string, patient: PatientUser) => void;
+  // The access token is an httpOnly cookie (patientAccessToken) now, set by
+  // the backend — never stored here, never readable by JS.
+  setAuth: (patient: PatientUser) => void;
   clearAuth: () => void;
 }
 
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
-      token: null,
       tenantId: null,
       patient: null,
       isAuthenticated: false,
-      setAuth: (token, patient) =>
-        set({ token, patient, tenantId: patient.tenantId, isAuthenticated: true }),
+      setAuth: (patient) =>
+        set({ patient, tenantId: patient.tenantId, isAuthenticated: true }),
       clearAuth: () =>
-        set({ token: null, patient: null, tenantId: null, isAuthenticated: false }),
+        set({ patient: null, tenantId: null, isAuthenticated: false }),
     }),
     { name: "clinivio-patient-auth" },
   ),

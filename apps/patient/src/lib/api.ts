@@ -1,35 +1,31 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from "axios";
 
-function getAuthState(): { token: string | null; tenantId: string | null } {
-  if (typeof window === "undefined") return { token: null, tenantId: null };
+// The access token is an httpOnly cookie (patientAccessToken) now — this
+// only needs the (non-sensitive) tenantId for the pre-login discovery routes.
+function getTenantId(): string | null {
+  if (typeof window === "undefined") return null;
   try {
     const raw = localStorage.getItem("clinivio-patient-auth");
-    if (!raw) return { token: null, tenantId: null };
-    const parsed = JSON.parse(raw);
-    return {
-      token:    parsed?.state?.token    ?? null,
-      tenantId: parsed?.state?.tenantId ?? null,
-    };
+    if (!raw) return null;
+    return JSON.parse(raw)?.state?.tenantId ?? null;
   } catch {
-    return { token: null, tenantId: null };
+    return null;
   }
 }
 
 const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL || "https://clinivio-backend.onrender.com";
+  process.env.NEXT_PUBLIC_API_URL || "https://api.megnim.com";
 
 function createApi(): AxiosInstance {
   const instance = axios.create({
     baseURL: API_BASE,
     timeout: 15_000,
+    withCredentials: true, // send/receive the httpOnly patientAccessToken cookie
     headers: { "Content-Type": "application/json" },
   });
 
   instance.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-    const { token, tenantId } = getAuthState();
-    if (token && config.headers) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
+    const tenantId = getTenantId();
     if (tenantId && config.headers && !config.url?.startsWith("/patient-portal/auth/")) {
       config.headers["X-Tenant-Id"] = tenantId;
     }

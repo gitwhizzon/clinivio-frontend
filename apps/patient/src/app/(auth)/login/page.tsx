@@ -72,7 +72,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const res = await api.post("/patient-portal/auth/login", { slug, phone, password });
-      setAuth(res.data.accessToken, res.data.patient);
+      setAuth(res.data.patient);
       toast({ title: "Welcome back!", variant: "success" });
       router.push("/dashboard");
     } catch (err: any) {
@@ -113,7 +113,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const res = await api.post("/patient-portal/auth/verify-otp", { slug, phone, otp });
-      setAuth(res.data.accessToken, res.data.patient);
+      setAuth(res.data.patient);
       toast({ title: "Welcome back!", variant: "success" });
       router.push("/dashboard");
     } catch (err: any) {
