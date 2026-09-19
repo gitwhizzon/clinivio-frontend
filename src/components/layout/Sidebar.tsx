@@ -127,7 +127,7 @@ const navGroups: NavGroup[] = [
 export function Sidebar() {
   const pathname = usePathname();
   const router   = useRouter();
-  const { user, logout } = useAuthStore();
+  const { user, refreshToken, logout } = useAuthStore();
   const [collapsed, setCollapsed] = useState(false);
 
   const role = user?.role ?? '';
@@ -139,7 +139,9 @@ export function Sidebar() {
 
   async function handleLogout() {
     try {
-      await iamApi.post('/auth/logout');
+      // Revokes the refresh token server-side so it can't mint another
+      // access token even if it leaks after this point.
+      await iamApi.post('/auth/logout', { refreshToken });
     } catch {
       // ignore — we clear client-side auth regardless
     }
