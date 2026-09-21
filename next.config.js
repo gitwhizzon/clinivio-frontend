@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  experimental: { serverComponentsExternalPackages: ['socket.io-client'] },
+  serverExternalPackages: ['socket.io-client'],
   // This app never uses next/image — fully disabling image optimization
   // removes the /_next/image route's transform pipeline entirely, which is
   // where an unpatched AVIF-related RCE lives in this Next.js version (no
