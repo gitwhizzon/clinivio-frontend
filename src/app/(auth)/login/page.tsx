@@ -28,6 +28,17 @@ const loginSchema = z.object({
 
 type LoginFormValues = z.infer<typeof loginSchema>;
 
+interface HospitalProfile {
+  name: string;
+  tagline: string | null;
+  city: string | null;
+  state: string | null;
+  phone: string | null;
+  email: string | null;
+  website: string | null;
+  logoUrl: string | null;
+}
+
 // ─── Role → destination map ───────────────────────────────────────────────────
 
 const ROLE_DEST: Record<string, string> = {
@@ -64,6 +75,19 @@ export default function LoginPage() {
   useEffect(() => {
     setHostContext(resolveHostContext());
   }, []);
+
+  // Real hospital branding for the left panel — falls back to the generic
+  // Megnim copy below if this hasn't loaded yet or the tenant left fields blank.
+  const [hospital, setHospital] = useState<HospitalProfile | null>(null);
+  useEffect(() => {
+    if (hostContext.kind !== "tenant") return;
+    iamApi
+      .get<HospitalProfile>("/patient-portal/public/hospital-profile")
+      .then(({ data }) => setHospital(data))
+      .catch(() => {
+        // Generic branding is a fine fallback — this is cosmetic, not load-bearing.
+      });
+  }, [hostContext]);
 
   // Reads ?error=sso_failed off the SSO callback's redirect (avoids
   // useSearchParams' Suspense-boundary requirement for something this simple).
@@ -140,14 +164,50 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {/* Tagline */}
-          <h1 className="text-white text-3xl font-bold leading-tight mb-3">
-            Your Hospital.<br />Fully Managed.
-          </h1>
-          <p className="text-blue-200 text-base leading-relaxed mb-8 max-w-sm">
-            A complete platform for managing patients, doctors, pharmacy,
-            billing, and more — purpose-built for modern hospitals.
-          </p>
+          {/* Tagline — the hospital's own branding on a tenant subdomain, once
+              /patient-portal/public/hospital-profile resolves; generic Megnim
+              marketing copy everywhere else (or while it's still loading). */}
+          {hospital ? (
+            <>
+              <div className="flex items-center gap-3 mb-3">
+                {hospital.logoUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={hospital.logoUrl}
+                    alt={hospital.name}
+                    className="w-10 h-10 rounded-xl object-cover ring-2 ring-white/20 bg-white/10"
+                  />
+                )}
+                <h1 className="text-white text-3xl font-bold leading-tight">
+                  {hospital.name}
+                </h1>
+              </div>
+              <p className="text-blue-200 text-base leading-relaxed mb-2 max-w-sm">
+                {hospital.tagline ?? "Managed on the Megnim hospital platform."}
+              </p>
+              {(hospital.city || hospital.state) && (
+                <p className="text-blue-300/80 text-sm mb-1">
+                  {[hospital.city, hospital.state].filter(Boolean).join(", ")}
+                </p>
+              )}
+              {(hospital.phone || hospital.email) && (
+                <p className="text-blue-300/80 text-sm mb-8">
+                  {[hospital.phone, hospital.email].filter(Boolean).join(" · ")}
+                </p>
+              )}
+              {!hospital.phone && !hospital.email && <div className="mb-8" />}
+            </>
+          ) : (
+            <>
+              <h1 className="text-white text-3xl font-bold leading-tight mb-3">
+                Your Hospital.<br />Fully Managed.
+              </h1>
+              <p className="text-blue-200 text-base leading-relaxed mb-8 max-w-sm">
+                A complete platform for managing patients, doctors, pharmacy,
+                billing, and more — purpose-built for modern hospitals.
+              </p>
+            </>
+          )}
 
           {/* Feature pills */}
           <div className="flex flex-wrap gap-2">
@@ -218,7 +278,9 @@ export default function LoginPage() {
                     <Building2 className="w-3.5 h-3.5 opacity-70" />
                     <p className="text-violet-100 text-xs font-mono font-medium">{displaySlug}</p>
                   </div>
-                  <p className="text-white font-semibold text-base">Hospital Sign In</p>
+                  <p className="text-white font-semibold text-base">
+                    {hospital?.name ?? "Hospital Sign In"}
+                  </p>
                   <p className="text-violet-200 text-xs mt-0.5">Sign in with your staff credentials</p>
                 </>
               ) : (
