@@ -79,13 +79,21 @@ export default function LoginPage() {
   // Real hospital branding for the left panel — falls back to the generic
   // Megnim copy below if this hasn't loaded yet or the tenant left fields blank.
   const [hospital, setHospital] = useState<HospitalProfile | null>(null);
+  // Any subdomain resolves DNS/TLS now that *.megnim.com is wildcarded — a
+  // made-up slug (e.g. hospitalx.megnim.com) must not render a working-looking
+  // login form. A 404 here means the slug isn't a real, active tenant at all
+  // (distinct from a real tenant that just hasn't filled in branding yet).
+  const [tenantNotFound, setTenantNotFound] = useState(false);
   useEffect(() => {
     if (hostContext.kind !== "tenant") return;
     iamApi
       .get<HospitalProfile>("/patient-portal/public/hospital-profile")
       .then(({ data }) => setHospital(data))
-      .catch(() => {
-        // Generic branding is a fine fallback — this is cosmetic, not load-bearing.
+      .catch((err: unknown) => {
+        const status = (err as { response?: { status?: number } })?.response?.status;
+        if (status === 404) setTenantNotFound(true);
+        // Any other error (network blip, etc.) — generic branding is a fine
+        // fallback for those, this isn't a load-bearing failure on its own.
       });
   }, [hostContext]);
 
@@ -137,6 +145,32 @@ export default function LoginPage() {
         error?.response?.data?.message ?? "Invalid credentials. Please try again."
       );
     }
+  }
+
+  // A subdomain that isn't a real, active tenant — block outright rather than
+  // rendering a login form that would make a made-up hospital look real.
+  if (tenantNotFound) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-blue-900 to-blue-800 flex items-center justify-center p-6">
+        <div className="bg-white rounded-2xl shadow-2xl overflow-hidden max-w-sm w-full">
+          <div className="px-6 py-5 bg-gradient-to-r from-slate-700 to-slate-800 text-white">
+            <div className="flex items-center gap-2">
+              <Activity className="w-4 h-4 opacity-80" />
+              <span className="font-bold text-sm tracking-wide">Megnim</span>
+            </div>
+          </div>
+          <div className="p-6 space-y-3 text-center">
+            <AlertCircle className="w-8 h-8 text-red-500 mx-auto" />
+            <p className="text-gray-900 font-semibold">Hospital not found</p>
+            <p className="text-sm text-gray-500">
+              <span className="font-mono">{displaySlug}</span> isn&apos;t a registered
+              hospital on Megnim. Check the link your administrator gave you, or
+              contact them if you believe this is a mistake.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
