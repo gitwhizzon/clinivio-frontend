@@ -215,9 +215,17 @@ function EnrollModal({ initial, onClose, onSuccess }: {
         patientId = res.data?.id;
       }
 
-      // Save conditions separately (always, to handle removals too)
+      // The patient record above is already saved at this point — a failure
+      // in this second, separate request must never be reported as if
+      // nothing was saved (that's what was driving people to hit Save again
+      // and create duplicate patients). Conditions are non-critical enough
+      // to fail quietly and let the user re-add them via Edit afterward.
       if (patientId) {
-        await patientApi.patch(`/patients/${patientId}/conditions`, { conditions });
+        try {
+          await patientApi.patch(`/patients/${patientId}/conditions`, { conditions });
+        } catch {
+          // swallowed — see comment above
+        }
       }
 
       onSuccess();

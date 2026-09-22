@@ -58,7 +58,11 @@ async function refreshAccessToken(): Promise<boolean> {
 function createApiInstance(baseURL: string): AxiosInstance {
   const instance = axios.create({
     baseURL,
-    timeout: 15_000,
+    // Render's backend can cold-start after idling — 15s was tight enough to
+    // occasionally time out a perfectly successful request (e.g. patient
+    // enrollment reporting "Save failed" while the record was actually
+    // created), which then invited a retry that duplicated it.
+    timeout: 30_000,
     withCredentials: true, // send/receive the httpOnly auth cookies
     headers: { "Content-Type": "application/json" },
   });
