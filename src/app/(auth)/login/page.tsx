@@ -84,8 +84,17 @@ export default function LoginPage() {
   // login form. A 404 here means the slug isn't a real, active tenant at all
   // (distinct from a real tenant that just hasn't filled in branding yet).
   const [tenantNotFound, setTenantNotFound] = useState(false);
+  // Fail closed: starts true so the interactive form never paints — not even
+  // for one frame — before we know this subdomain is a real tenant. Only
+  // "tenant" hosts have anything to check; platform/unknown hosts clear this
+  // immediately since there's no slug to validate.
+  const [checkingTenant, setCheckingTenant] = useState(true);
   useEffect(() => {
-    if (hostContext.kind !== "tenant") return;
+    if (hostContext.kind === "unknown") return; // still resolving the host itself
+    if (hostContext.kind !== "tenant") {
+      setCheckingTenant(false);
+      return;
+    }
     iamApi
       .get<HospitalProfile>("/patient-portal/public/hospital-profile")
       .then(({ data }) => setHospital(data))
@@ -94,7 +103,8 @@ export default function LoginPage() {
         if (status === 404) setTenantNotFound(true);
         // Any other error (network blip, etc.) — generic branding is a fine
         // fallback for those, this isn't a load-bearing failure on its own.
-      });
+      })
+      .finally(() => setCheckingTenant(false));
   }, [hostContext]);
 
   // Reads ?error=sso_failed off the SSO callback's redirect (avoids
@@ -145,6 +155,19 @@ export default function LoginPage() {
         error?.response?.data?.message ?? "Invalid credentials. Please try again."
       );
     }
+  }
+
+  // Still confirming this subdomain is a real tenant — show a neutral
+  // spinner, not the interactive form. Without this gate the form would
+  // paint immediately (tenantNotFound starts false) and only swap to the
+  // "not found" state after the profile check resolves, letting a made-up
+  // hospital's login form flash on screen for a moment on every load.
+  if (checkingTenant) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-blue-900 to-blue-800 flex items-center justify-center p-6">
+        <span className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+      </div>
+    );
   }
 
   // A subdomain that isn't a real, active tenant — block outright rather than
