@@ -189,7 +189,7 @@ function EnrollModal({ initial, onClose, onSuccess }: {
     setSaving(true);
     setError(null);
     try {
-      const payload = {
+      const baseFields = {
         firstName: form.firstName,
         lastName: form.lastName || undefined,
         phone: form.phone,
@@ -203,15 +203,22 @@ function EnrollModal({ initial, onClose, onSuccess }: {
         abhaId: form.abhaId || undefined,
         emergencyContactName: form.emergencyContactName || undefined,
         emergencyContactPhone: form.emergencyContactPhone || undefined,
-        consentGiven: form.consentGiven,
       };
 
       let patientId: string;
       if (isEdit) {
-        await patientApi.patch(`/patients/${initial!.id}`, payload);
+        // UpdatePatientDto doesn't accept consentGiven — consent has its own
+        // dedicated endpoint (POST /patients/:id/consent) with its own
+        // timestamp/version audit trail, deliberately not a generic field
+        // edit. Sending it here trips the global whitelist validator and
+        // fails the whole edit, same bug class as the payAtCounter issue.
+        await patientApi.patch(`/patients/${initial!.id}`, baseFields);
         patientId = initial!.id;
       } else {
-        const res = await patientApi.post('/patients', payload);
+        const res = await patientApi.post('/patients', {
+          ...baseFields,
+          consentGiven: form.consentGiven,
+        });
         patientId = res.data?.id;
       }
 
