@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { appointmentApi, patientApi, iamApi } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { PatientHistoryDrawer } from '@/components/PatientHistoryDrawer';
+import { DismissModal } from '@/components/DismissModal';
 
 interface Appointment {
   id: string;
@@ -431,6 +432,7 @@ export default function AppointmentsPage() {
   const [newApptId, setNewApptId] = useState<string | null>(null);
   const [lastVisitType, setLastVisitType] = useState<string>('OPD');
   const [historyPatient, setHistoryPatient] = useState<Appointment['patient'] | null>(null);
+  const [dismissTarget, setDismissTarget] = useState<Appointment | null>(null);
 
   const fetchAppointments = useCallback(async () => {
     try {
@@ -475,6 +477,13 @@ export default function AppointmentsPage() {
       {showModal && <BookingModal onClose={() => setShowModal(false)} onSuccess={handleBookingSuccess} />}
       {historyPatient && (
         <PatientHistoryDrawer patient={historyPatient} onClose={() => setHistoryPatient(null)} />
+      )}
+      {dismissTarget && (
+        <DismissModal
+          appointment={dismissTarget}
+          onClose={() => setDismissTarget(null)}
+          onDismissed={() => { setDismissTarget(null); fetchAppointments(); }}
+        />
       )}
 
       <div className="flex items-center justify-between mb-6">
@@ -586,6 +595,14 @@ export default function AppointmentsPage() {
                         >
                           History
                         </button>
+                        {!['CANCELLED', 'NO_SHOW', 'COMPLETED'].includes(appt.status) && (
+                          <button
+                            onClick={() => setDismissTarget(appt)}
+                            className="px-2.5 py-1 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors whitespace-nowrap"
+                          >
+                            Cancel
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
