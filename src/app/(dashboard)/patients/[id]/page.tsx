@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { patientApi, appointmentApi, billingApi } from '@/lib/api';
+import { patientApi, appointmentApi, billingApi, getErrorMessage } from '@/lib/api';
 import { useAuthStore } from '@/store/auth.store';
 import { generateReceiptHtml, printDocument } from '@/lib/print';
 import { cn } from '@/lib/utils';
@@ -185,6 +185,10 @@ function EditPatientModal({ patient, onClose, onSuccess }: {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault(); setSaving(true); setError(null);
     try {
+      // UpdatePatientDto doesn't accept consentGiven — consent has its own
+      // dedicated endpoint (POST /patients/:id/consent) with its own
+      // timestamp/version audit trail. Sending it here trips the global
+      // whitelist validator and fails the whole edit.
       const res = await patientApi.patch(`/patients/${patient.id}`, {
         firstName: form.firstName, lastName: form.lastName || undefined,
         phone: form.phone, whatsappPhone: form.whatsappPhone || undefined,
@@ -193,13 +197,20 @@ function EditPatientModal({ patient, onClose, onSuccess }: {
         preferredLanguage: form.preferredLanguage, address: form.address || undefined,
         emergencyContactName: form.emergencyContactName || undefined,
         emergencyContactPhone: form.emergencyContactPhone || undefined,
-        consentGiven: form.consentGiven,
       });
-      onSuccess(res.data);
+      let updated = res.data;
+      if (form.consentGiven && !patient.consentGivenAt) {
+        try {
+          const consentRes = await patientApi.post(`/patients/${patient.id}/consent`);
+          updated = consentRes.data;
+        } catch {
+          // non-critical — the patient edit above already succeeded; let the
+          // user re-tick consent from this same modal if this quietly failed
+        }
+      }
+      onSuccess(updated);
     } catch (err: unknown) {
-      const e = err as { response?: { data?: { message?: string | string[] } } };
-      const m = e?.response?.data?.message;
-      setError(Array.isArray(m) ? m.join(', ') : m || 'Save failed');
+      setError(getErrorMessage(err, 'Save failed'));
     } finally { setSaving(false); }
   }
 
@@ -267,11 +278,14 @@ function EditPatientModal({ patient, onClose, onSuccess }: {
           </div>
 
           <div className="border-t border-gray-100 pt-4">
-            <label className="flex items-start gap-3 cursor-pointer">
-              <input type="checkbox" checked={form.consentGiven}
+            <label className={cn('flex items-start gap-3', patient.consentGivenAt ? 'cursor-default' : 'cursor-pointer')}>
+              <input type="checkbox" checked={form.consentGiven} disabled={!!patient.consentGivenAt}
                 onChange={e => setForm(p => ({ ...p, consentGiven: e.target.checked }))}
-                className="mt-0.5 w-4 h-4 rounded border-gray-300" />
-              <span className="text-sm text-gray-700">Consent given for data collection and treatment</span>
+                className="mt-0.5 w-4 h-4 rounded border-gray-300 disabled:opacity-60" />
+              <span className="text-sm text-gray-700">
+                Consent given for data collection and treatment
+                {patient.consentGivenAt && <span className="block text-xs text-gray-400 mt-0.5">Already recorded — cannot be revoked here</span>}
+              </span>
             </label>
           </div>
 
@@ -328,9 +342,7 @@ function NewApptModal({ patientId, onClose, onSuccess }: {
       });
       onSuccess();
     } catch (err: unknown) {
-      const e = err as { response?: { data?: { message?: string | string[] } } };
-      const m = e?.response?.data?.message;
-      setError(Array.isArray(m) ? m.join(', ') : m || 'Booking failed');
+      setError(getErrorMessage(err, 'Booking failed'));
     } finally { setSaving(false); }
   }
 
@@ -416,9 +428,7 @@ function CollectPaymentModal({ invoice, onClose, onSuccess }: {
       await billingApi.post(`/invoices/${invoice.id}/confirm-payment`, { paymentMethod, amount: amt });
       onSuccess();
     } catch (err: unknown) {
-      const e2 = err as { response?: { data?: { message?: string | string[] } } };
-      const msg = e2?.response?.data?.message;
-      setError(Array.isArray(msg) ? msg.join(', ') : msg || 'Payment failed');
+      setError(getErrorMessage(err, 'Payment failed'));
       setSaving(false);
     }
   };
@@ -509,9 +519,7 @@ function CreateEmiModal({ invoice, onClose, onSuccess }: {
       });
       onSuccess();
     } catch (err: unknown) {
-      const e2 = err as { response?: { data?: { message?: string | string[] } } };
-      const msg = e2?.response?.data?.message;
-      setError(Array.isArray(msg) ? msg.join(', ') : msg || 'Failed to create EMI plan');
+      setError(getErrorMessage(err, 'Failed to create EMI plan'));
       setSaving(false);
     }
   };
@@ -598,9 +606,7 @@ function CollectInstallmentModal({ plan, installment, onClose, onSuccess }: {
       await billingApi.post(`/emi/plans/${plan.id}/installments/${installment.id}/collect`, { paymentMethod });
       onSuccess();
     } catch (err: unknown) {
-      const e2 = err as { response?: { data?: { message?: string | string[] } } };
-      const msg = e2?.response?.data?.message;
-      setError(Array.isArray(msg) ? msg.join(', ') : msg || 'Failed to collect installment');
+      setError(getErrorMessage(err, 'Failed to collect installment'));
       setSaving(false);
     }
   };
@@ -683,7 +689,7 @@ export default function PatientDetailPage() {
   const [loadingInvoices, setLoadingInvoices] = useState(false);
   const [editModal, setEditModal] = useState(false);
   const [apptModal, setApptModal] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
   const [printingReceiptId, setPrintingReceiptId] = useState<string | null>(null);
 
   // Conditions — editable inline from the header
@@ -747,7 +753,10 @@ export default function PatientDetailPage() {
       .then(r => setCommonConditions(r.data?.conditions ?? [])).catch(() => {});
   }, []);
 
-  function showToast(msg: string) { setToast(msg); setTimeout(() => setToast(null), 4000); }
+  function showToast(msg: string, type: 'success' | 'error' = 'success') {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 4000);
+  }
 
   function startEditConditions() {
     setDraftConditions(patient?.conditions ?? []);
@@ -763,7 +772,7 @@ export default function PatientDetailPage() {
       setEditingConditions(false);
       showToast('Conditions saved!');
     } catch {
-      showToast('Failed to save conditions');
+      showToast('Failed to save conditions', 'error');
     } finally {
       setSavingConditions(false);
     }
@@ -854,8 +863,11 @@ export default function PatientDetailPage() {
       </div>
 
       {toast && (
-        <div className="mb-4 bg-green-50 border border-green-200 text-green-700 text-sm rounded-lg px-4 py-2.5 flex items-center gap-2">
-          <span>✓</span> {toast}
+        <div className={cn(
+          'mb-4 text-sm rounded-lg px-4 py-2.5 flex items-center gap-2 border',
+          toast.type === 'error' ? 'bg-red-50 border-red-200 text-red-700' : 'bg-green-50 border-green-200 text-green-700',
+        )}>
+          <span>{toast.type === 'error' ? '✗' : '✓'}</span> {toast.msg}
         </div>
       )}
 

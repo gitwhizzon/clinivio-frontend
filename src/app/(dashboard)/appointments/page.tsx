@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { appointmentApi, patientApi, iamApi } from '@/lib/api';
+import { appointmentApi, patientApi, iamApi, getErrorMessage } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { PatientHistoryDrawer } from '@/components/PatientHistoryDrawer';
 import { DismissModal } from '@/components/DismissModal';
@@ -153,9 +153,7 @@ function BookingModal({
       });
       onSuccess(res.data?.id || '', visitType);
     } catch (err: unknown) {
-      const e = err as { response?: { data?: { message?: string | string[] } } };
-      const msg = e?.response?.data?.message;
-      setError(Array.isArray(msg) ? msg.join(', ') : msg || 'Failed to book appointment');
+      setError(getErrorMessage(err, 'Failed to book appointment'));
       // The selected slot may have just been taken by another booking (race
       // condition) — refresh the list so the stale/full slot disappears.
       if (selectedSlotId && doctorId && scheduledDate) {

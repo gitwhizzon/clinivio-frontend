@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { patientApi, appointmentApi } from '@/lib/api';
+import { patientApi, appointmentApi, getErrorMessage } from '@/lib/api';
 import { useAuthStore } from '@/store/auth.store';
 import { cn } from '@/lib/utils';
 import { PatientHistoryDrawer } from '@/components/PatientHistoryDrawer';
@@ -237,9 +237,7 @@ function EnrollModal({ initial, onClose, onSuccess }: {
 
       onSuccess();
     } catch (err: unknown) {
-      const e = err as { response?: { data?: { message?: string | string[] } } };
-      const msg = e?.response?.data?.message;
-      setError(Array.isArray(msg) ? msg.join(', ') : msg || 'Save failed');
+      setError(getErrorMessage(err, 'Save failed'));
     } finally {
       setSaving(false);
     }

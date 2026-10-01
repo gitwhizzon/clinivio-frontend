@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { billingApi, appointmentApi } from '@/lib/api';
+import { billingApi, appointmentApi, getErrorMessage } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
 interface BillableServiceItem {
@@ -73,9 +73,7 @@ function ServiceModal({ mode, item, departments, onClose, onSuccess }: {
       }
       onSuccess();
     } catch (err: unknown) {
-      const e = err as { response?: { data?: { message?: string | string[] } } };
-      const msg = e?.response?.data?.message;
-      setError(Array.isArray(msg) ? msg.join(', ') : msg || 'Save failed');
+      setError(getErrorMessage(err, 'Save failed'));
     } finally {
       setSaving(false);
     }
@@ -211,7 +209,7 @@ export default function BillableServicesPage() {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState<{ mode: ModalMode; item?: BillableServiceItem } | null>(null);
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
 
   const fetchServices = async () => {
     try {
@@ -226,8 +224,8 @@ export default function BillableServicesPage() {
     appointmentApi.get('/departments').then(r => setDepartments(r.data || [])).catch(() => {});
   }, []);
 
-  function showToast(msg: string) {
-    setToast(msg);
+  function showToast(msg: string, type: 'success' | 'error' = 'success') {
+    setToast({ msg, type });
     setTimeout(() => setToast(null), 4000);
   }
 
@@ -240,9 +238,13 @@ export default function BillableServicesPage() {
 
   async function handleDeactivate(item: BillableServiceItem) {
     if (!confirm(`Deactivate "${item.name}"? It will no longer be selectable on the billing page.`)) return;
-    await billingApi.delete(`/billable-services/${item.id}`);
-    showToast('Service deactivated');
-    fetchServices();
+    try {
+      await billingApi.delete(`/billable-services/${item.id}`);
+      showToast('Service deactivated');
+      fetchServices();
+    } catch (err: unknown) {
+      showToast(getErrorMessage(err, 'Failed to deactivate service'), 'error');
+    }
   }
 
   const deptName = (id?: string | null) => departments.find(d => d.id === id)?.name;
@@ -272,8 +274,11 @@ export default function BillableServicesPage() {
       </div>
 
       {toast && (
-        <div className="mb-4 bg-green-50 border border-green-200 text-green-700 text-sm rounded-lg px-4 py-2.5 flex items-center gap-2">
-          <span>✓</span> {toast}
+        <div className={cn(
+          'mb-4 text-sm rounded-lg px-4 py-2.5 flex items-center gap-2 border',
+          toast.type === 'error' ? 'bg-red-50 border-red-200 text-red-700' : 'bg-green-50 border-green-200 text-green-700',
+        )}>
+          <span>{toast.type === 'error' ? '✗' : '✓'}</span> {toast.msg}
         </div>
       )}
 

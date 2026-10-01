@@ -127,3 +127,21 @@ export const appointmentApi = createApiInstance(API_BASE);
 export const billingApi     = createApiInstance(API_BASE);
 
 export default iamApi;
+
+// ─── Error message extraction ──────────────────────────────────────────────────
+// The backend's AllExceptionsFilter collapses class-validator's per-field
+// messages into a generic `message: "Validation failed"` string and moves the
+// actual details into a separate `errors: string[]` array (see
+// libs/shared/src/filters/all-exceptions.filter.ts). Reading `.message` alone
+// — the old NestJS default shape — shows the user "Validation failed" with no
+// indication of which field or why. Every catch block should go through this
+// instead of reaching into `err.response.data.message` directly.
+export function getErrorMessage(err: unknown, fallback = "Something went wrong"): string {
+  const e = err as { response?: { data?: { message?: string; errors?: string[] } } };
+  const errors = e?.response?.data?.errors;
+  if (Array.isArray(errors) && errors.length > 0) return errors.join(", ");
+  const msg = e?.response?.data?.message;
+  if (Array.isArray(msg)) return msg.join(", ");
+  if (typeof msg === "string" && msg) return msg;
+  return fallback;
+}

@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
-import { iamApi } from '@/lib/api';
+import { iamApi, getErrorMessage } from '@/lib/api';
 
 interface Tenant {
   id: string;
@@ -987,8 +987,7 @@ export default function HospitalsPage() {
         title: `New Credentials — ${tenant.name}`,
       });
     } catch (err: unknown) {
-      const e = err as { response?: { data?: { message?: string } } };
-      showToast(e?.response?.data?.message || 'Failed to reset password', 'error');
+      showToast(getErrorMessage(err, 'Failed to reset password'), 'error');
     } finally { setResetting(null); }
   }
 
@@ -1001,8 +1000,7 @@ export default function HospitalsPage() {
       showToast(`${modal.tenant.name} has been permanently deleted`);
       fetchTenants();
     } catch (err: unknown) {
-      const e = err as { response?: { data?: { message?: string } } };
-      showToast(e?.response?.data?.message || 'Failed to delete tenant', 'error');
+      showToast(getErrorMessage(err, 'Failed to delete tenant'), 'error');
       setModal(null);
     } finally { setDeleting(false); }
   }
