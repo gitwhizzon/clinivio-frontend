@@ -1103,7 +1103,11 @@ export default function HospitalsPage() {
                 const isLast     = i === tenants.length - 1;
 
                 return (
-                  <tr key={t.id} className={`hover:bg-gray-50 ${isLast ? '' : 'border-b border-gray-50'}`}>
+                  <tr
+                    key={t.id}
+                    onClick={() => setModal({ type: 'edit', tenant: t })}
+                    className={`hover:bg-gray-50 cursor-pointer ${isLast ? '' : 'border-b border-gray-50'}`}
+                  >
                     <td className="px-4 py-3">
                       <p className="font-medium text-gray-900">{t.name}</p>
                       <p className="text-xs text-gray-400">{[t.city, t.state].filter(Boolean).join(', ') || '—'}</p>
@@ -1147,7 +1151,7 @@ export default function HospitalsPage() {
                       <div className="flex items-center justify-end gap-1">
                         {/* Reset password */}
                         <button
-                          onClick={() => handleResetPassword(t)}
+                          onClick={(e) => { e.stopPropagation(); handleResetPassword(t); }}
                           disabled={resetting === t.id}
                           title="Reset admin password"
                           className="w-8 h-8 flex items-center justify-center rounded-lg text-amber-500 hover:bg-amber-50 disabled:opacity-50 transition-colors">
@@ -1157,14 +1161,14 @@ export default function HospitalsPage() {
                         </button>
                         {/* Edit */}
                         <button
-                          onClick={() => setModal({ type: 'edit', tenant: t })}
+                          onClick={(e) => { e.stopPropagation(); setModal({ type: 'edit', tenant: t }); }}
                           title="Edit hospital"
                           className="w-8 h-8 flex items-center justify-center rounded-lg text-blue-500 hover:bg-blue-50 transition-colors">
                           <EditIcon />
                         </button>
                         {/* Delete */}
                         <button
-                          onClick={() => setModal({ type: 'delete', tenant: t })}
+                          onClick={(e) => { e.stopPropagation(); setModal({ type: 'delete', tenant: t }); }}
                           title="Delete hospital"
                           className="w-8 h-8 flex items-center justify-center rounded-lg text-red-400 hover:bg-red-50 transition-colors">
                           <TrashIcon />

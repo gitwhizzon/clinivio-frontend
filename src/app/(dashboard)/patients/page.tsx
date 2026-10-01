@@ -528,22 +528,23 @@ export default function PatientsPage() {
                 const visible = conds.slice(0, 2);
                 const overflow = conds.length - 2;
                 return (
-                  <tr key={p.id} className="hover:bg-gray-50 transition-colors">
+                  <tr
+                    key={p.id}
+                    onClick={() => router.push(`/patients/${p.id}`)}
+                    className="hover:bg-gray-50 transition-colors cursor-pointer"
+                  >
                     <td className="px-4 py-3 font-mono text-xs text-blue-600 font-medium">{p.uhid}</td>
                     <td className="px-4 py-3">
-                      <button
-                        onClick={() => router.push(`/patients/${p.id}`)}
-                        className="font-medium text-gray-900 hover:text-blue-600 hover:underline text-left"
-                      >
+                      <p className="font-medium text-gray-900 hover:text-blue-600 hover:underline text-left">
                         {p.firstName} {p.lastName}
-                      </button>
+                      </p>
                       {p.email && <p className="text-xs text-gray-400">{p.email}</p>}
                     </td>
                     <td className="px-4 py-3">
                       {conds.length === 0 ? (
                         canTag ? (
                           <button
-                            onClick={() => setEnrollModal({ patient: p })}
+                            onClick={(e) => { e.stopPropagation(); setEnrollModal({ patient: p }); }}
                             className="text-xs text-gray-400 hover:text-orange-600 hover:underline"
                           >
                             + Add tag
@@ -576,7 +577,7 @@ export default function PatientsPage() {
                     </td>
                     <td className="px-4 py-3">
                       <button
-                        onClick={() => setHistoryPatient(p)}
+                        onClick={(e) => { e.stopPropagation(); setHistoryPatient(p); }}
                         className="px-2.5 py-1 text-xs font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100 transition-colors"
                       >
                         History
@@ -585,7 +586,7 @@ export default function PatientsPage() {
                     {canEnroll && (
                       <td className="px-4 py-3">
                         <button
-                          onClick={() => setEnrollModal({ patient: p })}
+                          onClick={(e) => { e.stopPropagation(); setEnrollModal({ patient: p }); }}
                           className="px-2.5 py-1 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
                         >
                           Edit

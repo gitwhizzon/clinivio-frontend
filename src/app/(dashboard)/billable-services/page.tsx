@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { billingApi, appointmentApi } from '@/lib/api';
+import { cn } from '@/lib/utils';
 
 interface BillableServiceItem {
   id: string;
@@ -298,7 +299,11 @@ export default function BillableServicesPage() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {services.map(s => (
-                <tr key={s.id} className={!s.isActive ? 'opacity-50' : 'hover:bg-gray-50'}>
+                <tr
+                  key={s.id}
+                  onClick={() => setModal({ mode: 'edit', item: s })}
+                  className={cn('cursor-pointer', !s.isActive ? 'opacity-50' : 'hover:bg-gray-50')}
+                >
                   <td className="px-4 py-3">
                     <p className="font-medium text-gray-900">{s.name}</p>
                     <p className="text-xs text-gray-400 font-mono">{s.code}</p>
@@ -312,14 +317,14 @@ export default function BillableServicesPage() {
                   <td className="px-4 py-3">
                     <div className="flex gap-1.5">
                       <button
-                        onClick={() => setModal({ mode: 'edit', item: s })}
+                        onClick={(e) => { e.stopPropagation(); setModal({ mode: 'edit', item: s }); }}
                         className="px-3 py-1 text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
                       >
                         Edit
                       </button>
                       {s.isActive && (
                         <button
-                          onClick={() => handleDeactivate(s)}
+                          onClick={(e) => { e.stopPropagation(); handleDeactivate(s); }}
                           className="px-3 py-1 text-xs font-medium text-gray-500 border border-gray-300 rounded-lg hover:bg-gray-50"
                         >
                           Deactivate

@@ -555,7 +555,11 @@ export default function AppointmentsPage() {
                 const { date, time } = formatDateTime(appt);
                 const isNew = appt.id === newApptId;
                 return (
-                  <tr key={appt.id} className={cn('transition-colors', isNew ? 'bg-green-50' : 'hover:bg-gray-50')}>
+                  <tr
+                    key={appt.id}
+                    onClick={() => appt.patient?.id && router.push(`/patients/${appt.patient.id}`)}
+                    className={cn('transition-colors cursor-pointer', isNew ? 'bg-green-50' : 'hover:bg-gray-50')}
+                  >
                     <td className="px-4 py-3 font-mono font-bold text-gray-900">#{appt.tokenNumber}</td>
                     <td className="px-4 py-3">
                       <p className="font-medium text-gray-900">{appt.patient?.firstName} {appt.patient?.lastName}</p>
@@ -583,21 +587,21 @@ export default function AppointmentsPage() {
                       <div className="flex items-center gap-2">
                         {appt.visitType === 'IPD' && (
                           <button
-                            onClick={() => router.push('/ipd')}
+                            onClick={(e) => { e.stopPropagation(); router.push('/ipd'); }}
                             className="px-2.5 py-1 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors whitespace-nowrap"
                           >
                             Admit
                           </button>
                         )}
                         <button
-                          onClick={() => setHistoryPatient(appt.patient)}
+                          onClick={(e) => { e.stopPropagation(); setHistoryPatient(appt.patient); }}
                           className="px-2.5 py-1 text-xs font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100 transition-colors whitespace-nowrap"
                         >
                           History
                         </button>
                         {!['CANCELLED', 'NO_SHOW', 'COMPLETED'].includes(appt.status) && (
                           <button
-                            onClick={() => setDismissTarget(appt)}
+                            onClick={(e) => { e.stopPropagation(); setDismissTarget(appt); }}
                             className="px-2.5 py-1 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors whitespace-nowrap"
                           >
                             Cancel
