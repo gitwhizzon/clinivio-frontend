@@ -112,7 +112,27 @@ interface Invoice {
   id: string; invoiceNumber: string; invoiceType: string;
   invoiceDate: string; totalAmount: string; paymentStatus: string;
   paymentMethod?: string; paidAt?: string; notes?: string;
+  amountPaid?: string; balanceDue?: string;
 }
+
+interface EmiInstallment {
+  id: string; installmentNumber: number; dueDate: string;
+  amountDue: string; amountPaid: string; status: string;
+  paymentMethod?: string; paidAt?: string; receiptNumber?: string;
+}
+
+interface EmiPlan {
+  id: string; invoiceId: string; patientId: string;
+  totalAmount: string; advanceAmount: string; numberOfInstallments: number;
+  installmentAmount: string; frequency: string; startDate: string;
+  status: string; notes?: string;
+  installments: EmiInstallment[];
+}
+
+// Invoice types the backend actually allows partial payment / EMI for —
+// mirrors invoices.service.ts's PARTIAL_PAYMENT_INVOICE_TYPES exactly, so
+// these buttons never show for an invoice type the backend would reject.
+const EMI_ELIGIBLE_TYPES = ['CONSULTATION', 'PACKAGE', 'PROCEDURE'];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -369,6 +389,259 @@ function NewApptModal({ patientId, onClose, onSuccess }: {
   );
 }
 
+// ─── Collect Payment modal ─────────────────────────────────────────────────────
+
+const PAYMENT_METHODS = ['CASH', 'UPI', 'CARD', 'NETBANKING'];
+
+function CollectPaymentModal({ invoice, onClose, onSuccess }: {
+  invoice: Invoice; onClose: () => void; onSuccess: () => void;
+}) {
+  const balanceDue = invoice.balanceDue !== undefined
+    ? parseFloat(invoice.balanceDue)
+    : parseFloat(invoice.totalAmount) - parseFloat(invoice.amountPaid ?? '0');
+  const [amount, setAmount] = useState(String(balanceDue));
+  const [paymentMethod, setPaymentMethod] = useState('CASH');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const inp = 'w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white';
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const amt = parseFloat(amount);
+    if (!amt || amt <= 0) { setError('Enter a valid amount'); return; }
+    if (amt > balanceDue + 0.01) { setError(`Cannot collect more than the ₹${balanceDue.toLocaleString('en-IN')} balance due`); return; }
+    setSaving(true);
+    setError('');
+    try {
+      await billingApi.post(`/invoices/${invoice.id}/confirm-payment`, { paymentMethod, amount: amt });
+      onSuccess();
+    } catch (err: unknown) {
+      const e2 = err as { response?: { data?: { message?: string | string[] } } };
+      const msg = e2?.response?.data?.message;
+      setError(Array.isArray(msg) ? msg.join(', ') : msg || 'Payment failed');
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+          <h2 className="text-base font-semibold text-gray-900">Collect Payment</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
+        </div>
+        <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
+          {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-3 py-2">{error}</div>}
+          <p className="text-sm text-gray-500">
+            {invoice.invoiceNumber} · Balance due <span className="font-semibold text-gray-900">₹{balanceDue.toLocaleString('en-IN')}</span>
+          </p>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Amount *</label>
+            <input type="number" step="0.01" min="0" max={balanceDue} value={amount}
+              onChange={e => setAmount(e.target.value)} className={inp} />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Payment Method</label>
+            <div className="grid grid-cols-2 gap-2">
+              {PAYMENT_METHODS.map(m => (
+                <button key={m} type="button" onClick={() => setPaymentMethod(m)}
+                  className={cn('py-1.5 text-xs font-semibold rounded-lg border transition-colors',
+                    paymentMethod === m ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400')}>
+                  {m}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="flex gap-3 pt-1">
+            <button type="button" onClick={onClose} className="flex-1 py-2 text-sm border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Cancel</button>
+            <button type="submit" disabled={saving}
+              className="flex-1 py-2 text-sm bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 disabled:opacity-60 flex items-center justify-center gap-2">
+              {saving ? <><span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />Collecting…</> : 'Collect Payment'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ─── Convert to EMI modal ──────────────────────────────────────────────────────
+
+function CreateEmiModal({ invoice, onClose, onSuccess }: {
+  invoice: Invoice; onClose: () => void; onSuccess: () => void;
+}) {
+  const balanceDue = invoice.balanceDue !== undefined
+    ? parseFloat(invoice.balanceDue)
+    : parseFloat(invoice.totalAmount) - parseFloat(invoice.amountPaid ?? '0');
+  const [advanceAmount, setAdvanceAmount] = useState('0');
+  const [numberOfInstallments, setNumberOfInstallments] = useState('3');
+  const [frequency, setFrequency] = useState('MONTHLY');
+  const [startDate, setStartDate] = useState(() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() + 1);
+    return d.toISOString().slice(0, 10);
+  });
+  const [paymentMethod, setPaymentMethod] = useState('CASH');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const inp = 'w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white';
+
+  const advance = parseFloat(advanceAmount) || 0;
+  const installments = parseInt(numberOfInstallments, 10) || 0;
+  const remaining = Math.max(0, balanceDue - advance);
+  const perInstallment = installments > 0 ? remaining / installments : 0;
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (installments < 2) { setError('An EMI plan needs at least 2 installments'); return; }
+    if (advance < 0) { setError('Advance amount cannot be negative'); return; }
+    if (advance >= balanceDue) { setError(`Advance must be less than the ₹${balanceDue.toLocaleString('en-IN')} balance due — use Collect Payment for a full payoff`); return; }
+    setSaving(true);
+    setError('');
+    try {
+      await billingApi.post('/emi/plans', {
+        invoiceId: invoice.id,
+        advanceAmount: advance,
+        numberOfInstallments: installments,
+        frequency,
+        startDate,
+        paymentMethod,
+      });
+      onSuccess();
+    } catch (err: unknown) {
+      const e2 = err as { response?: { data?: { message?: string | string[] } } };
+      const msg = e2?.response?.data?.message;
+      setError(Array.isArray(msg) ? msg.join(', ') : msg || 'Failed to create EMI plan');
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+          <h2 className="text-base font-semibold text-gray-900">Convert to EMI</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
+        </div>
+        <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
+          {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-3 py-2">{error}</div>}
+          <p className="text-sm text-gray-500">
+            {invoice.invoiceNumber} · Balance due <span className="font-semibold text-gray-900">₹{balanceDue.toLocaleString('en-IN')}</span>
+          </p>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Advance collected now</label>
+            <input type="number" step="0.01" min="0" max={balanceDue} value={advanceAmount}
+              onChange={e => setAdvanceAmount(e.target.value)} className={inp} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">No. of installments *</label>
+              <input type="number" step="1" min="2" value={numberOfInstallments}
+                onChange={e => setNumberOfInstallments(e.target.value)} className={inp} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Frequency</label>
+              <select value={frequency} onChange={e => setFrequency(e.target.value)} className={inp}>
+                <option value="MONTHLY">Monthly</option>
+                <option value="WEEKLY">Weekly</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">First installment due</label>
+            <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className={inp} />
+          </div>
+          {installments >= 2 && (
+            <p className="text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2">
+              {installments} installments of ≈ ₹{perInstallment.toLocaleString('en-IN', { maximumFractionDigits: 2 })} each
+            </p>
+          )}
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Advance payment method</label>
+            <div className="grid grid-cols-2 gap-2">
+              {PAYMENT_METHODS.map(m => (
+                <button key={m} type="button" onClick={() => setPaymentMethod(m)}
+                  className={cn('py-1.5 text-xs font-semibold rounded-lg border transition-colors',
+                    paymentMethod === m ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-300 hover:border-indigo-400')}>
+                  {m}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="flex gap-3 pt-1">
+            <button type="button" onClick={onClose} className="flex-1 py-2 text-sm border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Cancel</button>
+            <button type="submit" disabled={saving}
+              className="flex-1 py-2 text-sm bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 disabled:opacity-60 flex items-center justify-center gap-2">
+              {saving ? <><span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />Creating…</> : 'Create EMI Plan'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ─── Collect Installment modal ─────────────────────────────────────────────────
+
+function CollectInstallmentModal({ plan, installment, onClose, onSuccess }: {
+  plan: EmiPlan; installment: EmiInstallment; onClose: () => void; onSuccess: () => void;
+}) {
+  const [paymentMethod, setPaymentMethod] = useState('CASH');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    setError('');
+    try {
+      await billingApi.post(`/emi/plans/${plan.id}/installments/${installment.id}/collect`, { paymentMethod });
+      onSuccess();
+    } catch (err: unknown) {
+      const e2 = err as { response?: { data?: { message?: string | string[] } } };
+      const msg = e2?.response?.data?.message;
+      setError(Array.isArray(msg) ? msg.join(', ') : msg || 'Failed to collect installment');
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+          <h2 className="text-base font-semibold text-gray-900">Collect Installment</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
+        </div>
+        <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
+          {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-3 py-2">{error}</div>}
+          <p className="text-sm text-gray-500">
+            Installment {installment.installmentNumber} · <span className="font-semibold text-gray-900">₹{parseFloat(installment.amountDue).toLocaleString('en-IN')}</span>
+          </p>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Payment Method</label>
+            <div className="grid grid-cols-2 gap-2">
+              {PAYMENT_METHODS.map(m => (
+                <button key={m} type="button" onClick={() => setPaymentMethod(m)}
+                  className={cn('py-1.5 text-xs font-semibold rounded-lg border transition-colors',
+                    paymentMethod === m ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400')}>
+                  {m}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="flex gap-3 pt-1">
+            <button type="button" onClick={onClose} className="flex-1 py-2 text-sm border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Cancel</button>
+            <button type="submit" disabled={saving}
+              className="flex-1 py-2 text-sm bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 disabled:opacity-60 flex items-center justify-center gap-2">
+              {saving ? <><span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />Collecting…</> : 'Collect Installment'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 interface PatientTrends {
@@ -397,6 +670,11 @@ export default function PatientDetailPage() {
   const [patient, setPatient] = useState<Patient | null>(null);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [emiPlans, setEmiPlans] = useState<EmiPlan[]>([]);
+  const [loadingEmiPlans, setLoadingEmiPlans] = useState(false);
+  const [collectPaymentTarget, setCollectPaymentTarget] = useState<Invoice | null>(null);
+  const [createEmiTarget, setCreateEmiTarget] = useState<Invoice | null>(null);
+  const [collectInstallmentTarget, setCollectInstallmentTarget] = useState<{ plan: EmiPlan; installment: EmiInstallment } | null>(null);
   const [tab, setTab] = useState<Tab>('overview');
   const [loadingPatient, setLoadingPatient] = useState(true);
   const [trendsData, setTrendsData] = useState<PatientTrends | null>(null);
@@ -444,9 +722,18 @@ export default function PatientDetailPage() {
     finally { setLoadingInvoices(false); }
   }, [id]);
 
+  const fetchEmiPlans = useCallback(async () => {
+    try {
+      setLoadingEmiPlans(true);
+      const res = await billingApi.get(`/emi/plans?patientId=${id}`);
+      setEmiPlans(res.data || []);
+    } catch { setEmiPlans([]); }
+    finally { setLoadingEmiPlans(false); }
+  }, [id]);
+
   useEffect(() => { fetchPatient(); }, [fetchPatient]);
   useEffect(() => { if (tab === 'history' || tab === 'billing') fetchAppointments(); }, [tab, fetchAppointments]);
-  useEffect(() => { if (tab === 'billing') fetchInvoices(); }, [tab, fetchInvoices]);
+  useEffect(() => { if (tab === 'billing') { fetchInvoices(); fetchEmiPlans(); } }, [tab, fetchInvoices, fetchEmiPlans]);
   useEffect(() => {
     if (tab !== 'trends' || !id) return;
     setLoadingTrends(true);
@@ -534,6 +821,28 @@ export default function PatientDetailPage() {
           patientId={p.id}
           onClose={() => setApptModal(false)}
           onSuccess={() => { setApptModal(false); showToast('Appointment booked!'); if (tab === 'history') fetchAppointments(); }}
+        />
+      )}
+      {collectPaymentTarget && (
+        <CollectPaymentModal
+          invoice={collectPaymentTarget}
+          onClose={() => setCollectPaymentTarget(null)}
+          onSuccess={() => { setCollectPaymentTarget(null); showToast('Payment collected!'); fetchInvoices(); }}
+        />
+      )}
+      {createEmiTarget && (
+        <CreateEmiModal
+          invoice={createEmiTarget}
+          onClose={() => setCreateEmiTarget(null)}
+          onSuccess={() => { setCreateEmiTarget(null); showToast('EMI plan created!'); fetchInvoices(); fetchEmiPlans(); }}
+        />
+      )}
+      {collectInstallmentTarget && (
+        <CollectInstallmentModal
+          plan={collectInstallmentTarget.plan}
+          installment={collectInstallmentTarget.installment}
+          onClose={() => setCollectInstallmentTarget(null)}
+          onSuccess={() => { setCollectInstallmentTarget(null); showToast('Installment collected!'); fetchInvoices(); fetchEmiPlans(); }}
         />
       )}
 
@@ -789,8 +1098,18 @@ export default function PatientDetailPage() {
                   const statusColor =
                     inv.paymentStatus === 'PAID' ? 'bg-green-100 text-green-700' :
                     inv.paymentStatus === 'REFUNDED' ? 'bg-gray-100 text-gray-500' :
+                    inv.paymentStatus === 'PARTIALLY_PAID' ? 'bg-orange-100 text-orange-700' :
                     'bg-yellow-100 text-yellow-700';
                   const typeLabel = inv.invoiceType.replace(/_/g, ' ');
+                  const balanceDue = inv.balanceDue !== undefined
+                    ? parseFloat(inv.balanceDue)
+                    : parseFloat(inv.totalAmount) - parseFloat(inv.amountPaid ?? '0');
+                  const hasActiveEmi = emiPlans.some(p => p.invoiceId === inv.id && p.status === 'ACTIVE');
+                  const canCollect =
+                    ['PENDING', 'PARTIALLY_PAID'].includes(inv.paymentStatus) &&
+                    balanceDue > 0 &&
+                    !hasActiveEmi;
+                  const canEmi = canCollect && EMI_ELIGIBLE_TYPES.includes(inv.invoiceType);
                   return (
                     <tr key={inv.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 font-mono text-xs text-blue-700">{inv.invoiceNumber}</td>
@@ -798,30 +1117,51 @@ export default function PatientDetailPage() {
                         <span className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-600">{typeLabel}</span>
                       </td>
                       <td className="px-4 py-3 text-gray-600 text-xs">{fmt(inv.invoiceDate)}</td>
-                      <td className="px-4 py-3 text-right font-semibold text-gray-900">
-                        ₹{parseFloat(inv.totalAmount).toLocaleString('en-IN')}
+                      <td className="px-4 py-3 text-right">
+                        <p className="font-semibold text-gray-900">₹{parseFloat(inv.totalAmount).toLocaleString('en-IN')}</p>
+                        {balanceDue > 0 && inv.paymentStatus !== 'REFUNDED' && (
+                          <p className="text-xs text-orange-600">₹{balanceDue.toLocaleString('en-IN')} due</p>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-gray-500 text-xs">{inv.paymentMethod ?? '—'}</td>
                       <td className="px-4 py-3">
                         <span className={cn('inline-flex px-2 py-0.5 rounded-full text-xs font-medium', statusColor)}>
-                          {inv.paymentStatus}
+                          {hasActiveEmi ? 'ON EMI' : inv.paymentStatus}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right">
-                        {inv.paymentStatus === 'PAID' && (
-                          <button
-                            onClick={() => printInvoiceReceipt(inv)}
-                            disabled={printingReceiptId === inv.id}
-                            className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50"
-                          >
-                            {printingReceiptId === inv.id ? (
-                              <span className="w-3 h-3 border border-gray-300 border-t-blue-600 rounded-full animate-spin" />
-                            ) : (
-                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
-                            )}
-                            Receipt
-                          </button>
-                        )}
+                        <div className="flex items-center justify-end gap-1.5">
+                          {inv.paymentStatus === 'PAID' && (
+                            <button
+                              onClick={() => printInvoiceReceipt(inv)}
+                              disabled={printingReceiptId === inv.id}
+                              className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                            >
+                              {printingReceiptId === inv.id ? (
+                                <span className="w-3 h-3 border border-gray-300 border-t-blue-600 rounded-full animate-spin" />
+                              ) : (
+                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                              )}
+                              Receipt
+                            </button>
+                          )}
+                          {canCollect && (
+                            <button
+                              onClick={() => setCollectPaymentTarget(inv)}
+                              className="px-2.5 py-1 text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100"
+                            >
+                              Collect
+                            </button>
+                          )}
+                          {canEmi && (
+                            <button
+                              onClick={() => setCreateEmiTarget(inv)}
+                              className="px-2.5 py-1 text-xs font-medium text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100"
+                            >
+                              Convert to EMI
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -841,6 +1181,76 @@ export default function PatientDetailPage() {
               </tfoot>
             </table>
           )}
+        </div>
+      )}
+
+      {/* EMI plans — shown within the Billing tab, below invoices */}
+      {tab === 'billing' && !loadingEmiPlans && emiPlans.length > 0 && (
+        <div className="mt-5 space-y-4">
+          <h3 className="text-sm font-semibold text-gray-700">Active EMI Plans</h3>
+          {emiPlans.map(plan => {
+            const invoice = invoices.find(i => i.id === plan.invoiceId);
+            const paidSoFar = plan.installments
+              .filter(i => i.status === 'PAID')
+              .reduce((sum, i) => sum + parseFloat(i.amountPaid), 0);
+            const nextDue = plan.installments
+              .filter(i => i.status !== 'PAID')
+              .sort((a, b) => a.installmentNumber - b.installmentNumber)[0];
+            return (
+              <div key={plan.id} className="bg-white rounded-xl border border-indigo-200 overflow-hidden">
+                <div className="px-4 py-3 bg-indigo-50 border-b border-indigo-100 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">
+                      {invoice?.invoiceNumber ?? 'Invoice'} · {plan.numberOfInstallments} installments ({plan.frequency.toLowerCase()})
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      ₹{paidSoFar.toLocaleString('en-IN')} collected of ₹{parseFloat(plan.totalAmount).toLocaleString('en-IN')}
+                    </p>
+                  </div>
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-medium">{plan.status}</span>
+                </div>
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                      <th className="px-4 py-2 text-left font-medium text-gray-500">#</th>
+                      <th className="px-4 py-2 text-left font-medium text-gray-500">Due date</th>
+                      <th className="px-4 py-2 text-right font-medium text-gray-500">Amount</th>
+                      <th className="px-4 py-2 text-left font-medium text-gray-500">Status</th>
+                      <th className="px-4 py-2" />
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {plan.installments
+                      .slice()
+                      .sort((a, b) => a.installmentNumber - b.installmentNumber)
+                      .map(inst => (
+                        <tr key={inst.id} className={inst.id === nextDue?.id ? 'bg-amber-50' : ''}>
+                          <td className="px-4 py-2 text-gray-600">{inst.installmentNumber === 0 ? 'Advance' : inst.installmentNumber}</td>
+                          <td className="px-4 py-2 text-gray-600 text-xs">{fmt(inst.dueDate)}</td>
+                          <td className="px-4 py-2 text-right text-gray-900">₹{parseFloat(inst.amountDue).toLocaleString('en-IN')}</td>
+                          <td className="px-4 py-2">
+                            <span className={cn('inline-flex px-2 py-0.5 rounded-full text-xs font-medium',
+                              inst.status === 'PAID' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700')}>
+                              {inst.status}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2 text-right">
+                            {inst.status !== 'PAID' && plan.status === 'ACTIVE' && (
+                              <button
+                                onClick={() => setCollectInstallmentTarget({ plan, installment: inst })}
+                                className="px-2.5 py-1 text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100"
+                              >
+                                Collect
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })}
         </div>
       )}
 
